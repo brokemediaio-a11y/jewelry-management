@@ -1,0 +1,58 @@
+/* Invoice preview & export: always dark text on white (ignores system dark mode) */
+.invoice-content {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #000000;
+  --muted: #f4f4f5;
+  --muted-foreground: #333333;
+  --accent: #f4f4f5;
+  --accent-foreground: #000000;
+  --border: #e4e4e7;
+}
+
+.invoice-content,
+.invoice-content *:not(img) {
+  color: #000000 !important;
+}
+
+.invoice-content [class*="text-muted-foreground"] {
+  color: #333333 !important;
+}
+
+.invoice-content [data-slot="card"],
+.invoice-content table,
+.invoice-content th,
+.invoice-content td,
+.invoice-content tr {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page {
+    page-break-after: always;
+  }
+
+  .invoice-content,
+  .invoice-content *:not(img) {
+    color: #000000 !important;
+  }
+}

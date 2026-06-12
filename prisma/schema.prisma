@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  STAFF
+  CLERK
+  ACCOUNTANT
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+}
+
+enum SaleType {
+  PURCHASE
+  CUSTOM_ORDER
+}
+
+enum SaleStatus {
+  COMPLETED
+  OPEN
+  CANCELLED
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  SOLD
+  RESERVED
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(STAFF)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sales Sale[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  inventoryItems InventoryItem[]
+
+  @@map("categories")
+}
+
+model InventoryItem {
+  id                    String          @id @default(uuid())
+  sku                   String          @unique
+  barcode               String          @unique
+  categoryId            String          @map("category_id")
+  imageData             String          @map("image_data") @db.Text
+  imageMimeType         String          @map("image_mime_type")
+  weightGrams           Decimal         @map("weight_grams") @db.Decimal(10, 3)
+  hasStone              Boolean         @default(false) @map("has_stone")
+  stoneType             String?         @map("stone_type")
+  stoneDetails          String?         @map("stone_details") @db.Text
+  silverRateAtPurchase  Decimal         @map("silver_rate_at_purchase") @db.Decimal(10, 2)
+  purchasePricePerGram  Decimal         @map("purchase_price_per_gram") @db.Decimal(10, 2)
+  purchasePricePerPiece Decimal         @map("purchase_price_per_piece") @db.Decimal(10, 2)
+  status                InventoryStatus @default(AVAILABLE)
+  purchasedAt           DateTime        @default(now()) @map("purchased_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  category  Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  saleItems SaleItem[]
+
+  @@index([categoryId])
+  @@index([sku])
+  @@index([barcode])
+  @@index([status])
+  @@map("inventory_items")
+}
+
+model SilverRateCache {
+  id          String   @id @default(uuid())
+  currency    String   @default("PKR")
+  ratePerGram Decimal  @map("rate_per_gram") @db.Decimal(10, 4)
+  source      String   @default("goldpricez")
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+  rawResponse Json?    @map("raw_response")
+
+  @@index([currency, fetchedAt])
+  @@map("silver_rate_cache")
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  address   String?  @db.Text
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sales Sale[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+model Sale {
+  id                 String        @id @default(uuid())
+  invoiceNumber      String?       @unique @map("invoice_number")
+  saleType           SaleType      @map("sale_type")
+  status             SaleStatus    @default(COMPLETED)
+  customerId         String?       @map("customer_id")
+  userId             String        @map("user_id")
+  suggestedSalePrice Decimal       @map("suggested_sale_price") @db.Decimal(10, 2)
+  finalPrice         Decimal       @map("final_price") @db.Decimal(10, 2)
+  silverRateAtSale   Decimal       @map("silver_rate_at_sale") @db.Decimal(10, 2)
+  advancePaid        Decimal?      @map("advance_paid") @db.Decimal(10, 2)
+  remainingAmount    Decimal?      @map("remaining_amount") @db.Decimal(10, 2)
+  pickupDate         DateTime?     @map("pickup_date")
+  closedAt           DateTime?     @map("closed_at")
+  paymentMethod      PaymentMethod @map("payment_method")
+  notes              String?       @db.Text
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items    SaleItem[]
+
+  @@index([customerId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([saleType])
+  @@map("sales")
+}
+
+model SaleItem {
+  id                    String   @id @default(uuid())
+  saleId                String   @map("sale_id")
+  inventoryItemId       String   @map("inventory_item_id")
+  weightGrams           Decimal  @map("weight_grams") @db.Decimal(10, 3)
+  silverRateAtPurchase  Decimal  @map("silver_rate_at_purchase") @db.Decimal(10, 2)
+  purchasePricePerPiece Decimal  @map("purchase_price_per_piece") @db.Decimal(10, 2)
+  silverRateAtSale      Decimal  @map("silver_rate_at_sale") @db.Decimal(10, 2)
+  categoryQuotient      Decimal  @map("category_quotient") @db.Decimal(4, 2)
+  suggestedSalePrice    Decimal  @map("suggested_sale_price") @db.Decimal(10, 2)
+  finalPrice            Decimal  @map("final_price") @db.Decimal(10, 2)
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([inventoryItemId])
+  @@map("sale_items")
+}
+
+model Settings {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
