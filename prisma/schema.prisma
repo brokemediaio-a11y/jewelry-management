@@ -42,6 +42,18 @@ enum InventoryStatus {
   RESERVED
 }
 
+enum ItemQuality {
+  PREMIUM
+  LOCAL
+}
+
+enum StoneOptionKind {
+  TYPE
+  COLOR
+  CUT
+  CLARITY
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -72,6 +84,23 @@ model Category {
   @@map("categories")
 }
 
+model StoneOption {
+  id        String           @id @default(uuid())
+  kind      StoneOptionKind
+  name      String
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  inventoryAsType    InventoryItem[] @relation("InventoryStoneType")
+  inventoryAsColor   InventoryItem[] @relation("InventoryStoneColor")
+  inventoryAsCut     InventoryItem[] @relation("InventoryStoneCut")
+  inventoryAsClarity InventoryItem[] @relation("InventoryStoneClarity")
+
+  @@unique([kind, name])
+  @@index([kind])
+  @@map("stone_options")
+}
+
 model InventoryItem {
   id                    String          @id @default(uuid())
   sku                   String          @unique
@@ -80,9 +109,12 @@ model InventoryItem {
   imageData             String          @map("image_data") @db.Text
   imageMimeType         String          @map("image_mime_type")
   weightGrams           Decimal         @map("weight_grams") @db.Decimal(10, 3)
-  hasStone              Boolean         @default(false) @map("has_stone")
-  stoneType             String?         @map("stone_type")
-  stoneDetails          String?         @map("stone_details") @db.Text
+  itemQuality           ItemQuality     @default(LOCAL) @map("item_quality")
+  stoneTypeId           String?         @map("stone_type_id")
+  stoneColorId          String?         @map("stone_color_id")
+  stoneCutId            String?         @map("stone_cut_id")
+  stoneClarityId        String?         @map("stone_clarity_id")
+  stonePrice            Decimal?        @map("stone_price") @db.Decimal(10, 2)
   silverRateAtPurchase  Decimal         @map("silver_rate_at_purchase") @db.Decimal(10, 2)
   purchasePricePerGram  Decimal         @map("purchase_price_per_gram") @db.Decimal(10, 2)
   purchasePricePerPiece Decimal         @map("purchase_price_per_piece") @db.Decimal(10, 2)
@@ -91,10 +123,15 @@ model InventoryItem {
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
 
-  category  Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  saleItems SaleItem[]
+  category     Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  stoneType    StoneOption? @relation("InventoryStoneType", fields: [stoneTypeId], references: [id], onDelete: SetNull)
+  stoneColor   StoneOption? @relation("InventoryStoneColor", fields: [stoneColorId], references: [id], onDelete: SetNull)
+  stoneCut     StoneOption? @relation("InventoryStoneCut", fields: [stoneCutId], references: [id], onDelete: SetNull)
+  stoneClarity StoneOption? @relation("InventoryStoneClarity", fields: [stoneClarityId], references: [id], onDelete: SetNull)
+  saleItems    SaleItem[]
 
   @@index([categoryId])
+  @@index([itemQuality])
   @@index([sku])
   @@index([barcode])
   @@index([status])
@@ -170,9 +207,15 @@ model SaleItem {
   purchasePricePerPiece Decimal  @map("purchase_price_per_piece") @db.Decimal(10, 2)
   silverRateAtSale      Decimal  @map("silver_rate_at_sale") @db.Decimal(10, 2)
   categoryQuotient      Decimal  @map("category_quotient") @db.Decimal(4, 2)
-  suggestedSalePrice    Decimal  @map("suggested_sale_price") @db.Decimal(10, 2)
-  finalPrice            Decimal  @map("final_price") @db.Decimal(10, 2)
-  createdAt             DateTime @default(now()) @map("created_at")
+  suggestedSalePrice    Decimal     @map("suggested_sale_price") @db.Decimal(10, 2)
+  finalPrice            Decimal     @map("final_price") @db.Decimal(10, 2)
+  itemQuality           ItemQuality @map("item_quality")
+  stoneTypeName         String?     @map("stone_type_name")
+  stoneColorName        String?     @map("stone_color_name")
+  stoneCutName          String?     @map("stone_cut_name")
+  stoneClarityName      String?     @map("stone_clarity_name")
+  stonePrice            Decimal?    @map("stone_price") @db.Decimal(10, 2)
+  createdAt             DateTime    @default(now()) @map("created_at")
 
   sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)

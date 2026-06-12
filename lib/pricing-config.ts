@@ -1,62 +1,34 @@
 import { roundPKR } from '@/lib/currency-utils';
 
+export type ItemQuality = 'PREMIUM' | 'LOCAL';
+
 export interface PricingItemInput {
   todaySilverRate: number;
   weightGrams: number;
-  purchasePricePerPiece: number;
-  categoryName: string;
+  stonePrice: number;
+  itemQuality: ItemQuality;
 }
 
 export const PRICING_CONFIG_KEY = 'pricing_config';
 
-export interface QuotientRule {
-  id: string;
-  label: string;
-  keywords: string[];
-  quotient: number;
-}
-
 export interface PricingConfig {
-  defaultQuotient: number;
   formula: string;
-  quotientRules: QuotientRule[];
+  premiumQuotient: number;
+  localQuotient: number;
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
-  defaultQuotient: 2,
-  formula: '((silverRate * weightGrams) + purchasePricePerPiece) * quotient',
-  quotientRules: [
-    {
-      id: 'real_premium',
-      label: 'Real Premium',
-      keywords: ['real_premium'],
-      quotient: 4,
-    },
-    {
-      id: 'real',
-      label: 'Real',
-      keywords: ['real'],
-      quotient: 3,
-    },
-    {
-      id: 'zircon_onix',
-      label: 'Zircon / Onix / Onyx',
-      keywords: ['zircon', 'onix', 'onyx'],
-      quotient: 2,
-    },
-  ],
+  formula: '((silverRate * weightGrams) + stonePrice) * quotient',
+  premiumQuotient: 4,
+  localQuotient: 2,
 };
 
 const FORMULA_VARIABLES = [
   'silverRate',
   'weightGrams',
-  'purchasePricePerPiece',
+  'stonePrice',
   'quotient',
 ] as const;
-
-function normalizeCategoryName(categoryName: string): string {
-  return categoryName.toLowerCase().replace(/\s+/g, '_');
-}
 
 export function evaluateFormula(
   formula: string,
@@ -93,8 +65,8 @@ export function validatePricingFormula(formula: string): string | null {
     const sample = evaluateFormula(formula, {
       silverRate: 600,
       weightGrams: 25,
-      purchasePricePerPiece: 5000,
-      quotient: 2,
+      stonePrice: 5000,
+      quotient: 4,
     });
     if (sample < 0) {
       return 'Formula produced a negative value with sample inputs';
@@ -105,33 +77,22 @@ export function validatePricingFormula(formula: string): string | null {
   }
 }
 
-export function getCategoryQuotient(
-  categoryName: string,
+export function getQualityQuotient(
+  itemQuality: ItemQuality,
   config: PricingConfig = DEFAULT_PRICING_CONFIG
 ): number {
-  const name = normalizeCategoryName(categoryName);
-
-  for (const rule of config.quotientRules) {
-    for (const keyword of rule.keywords) {
-      const normalizedKeyword = keyword.toLowerCase().replace(/\s+/g, '_');
-      if (name.includes(normalizedKeyword)) {
-        return rule.quotient;
-      }
-    }
-  }
-
-  return config.defaultQuotient;
+  return itemQuality === 'PREMIUM' ? config.premiumQuotient : config.localQuotient;
 }
 
 export function calculateItemSuggestedPrice(
   input: PricingItemInput,
   config: PricingConfig = DEFAULT_PRICING_CONFIG
 ): number {
-  const quotient = getCategoryQuotient(input.categoryName, config);
+  const quotient = getQualityQuotient(input.itemQuality, config);
   const raw = evaluateFormula(config.formula, {
     silverRate: input.todaySilverRate,
     weightGrams: input.weightGrams,
-    purchasePricePerPiece: input.purchasePricePerPiece,
+    stonePrice: input.stonePrice || 0,
     quotient,
   });
   return roundPKR(raw);
@@ -141,20 +102,28 @@ export function parsePricingConfig(stored: string | null): PricingConfig {
   if (!stored) return DEFAULT_PRICING_CONFIG;
 
   try {
-    const parsed = JSON.parse(stored) as PricingConfig;
+    const parsed = JSON.parse(stored) as Partial<PricingConfig> & {
+      quotientRules?: unknown;
+      defaultQuotient?: number;
+    };
+
+    if ('quotientRules' in parsed && parsed.quotientRules) {
+      return {
+        formula:
+          parsed.formula?.includes('stonePrice')
+            ? parsed.formula
+            : DEFAULT_PRICING_CONFIG.formula,
+        premiumQuotient: DEFAULT_PRICING_CONFIG.premiumQuotient,
+        localQuotient: DEFAULT_PRICING_CONFIG.localQuotient,
+      };
+    }
+
     return {
-      defaultQuotient:
-        Number(parsed.defaultQuotient) || DEFAULT_PRICING_CONFIG.defaultQuotient,
       formula: parsed.formula || DEFAULT_PRICING_CONFIG.formula,
-      quotientRules: Array.isArray(parsed.quotientRules)
-        ? parsed.quotientRules.map((rule, index) => ({
-            id: rule.id || `rule_${index}`,
-            label: rule.label || '',
-            keywords: Array.isArray(rule.keywords) ? rule.keywords : [],
-            quotient:
-              Number(rule.quotient) || DEFAULT_PRICING_CONFIG.defaultQuotient,
-          }))
-        : DEFAULT_PRICING_CONFIG.quotientRules,
+      premiumQuotient:
+        Number(parsed.premiumQuotient) || DEFAULT_PRICING_CONFIG.premiumQuotient,
+      localQuotient:
+        Number(parsed.localQuotient) || DEFAULT_PRICING_CONFIG.localQuotient,
     };
   } catch {
     return DEFAULT_PRICING_CONFIG;

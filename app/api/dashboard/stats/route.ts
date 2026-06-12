@@ -20,6 +20,7 @@ export async function GET() {
       availableInventory,
       monthlySalesCount,
       monthlyRevenueAgg,
+      monthlyProfitAgg,
       openCustomOrders,
       recentSales,
     ] = await Promise.all([
@@ -36,6 +37,18 @@ export async function GET() {
           status: 'COMPLETED',
         },
         _sum: { finalPrice: true },
+      }),
+      prisma.saleItem.aggregate({
+        where: {
+          sale: {
+            createdAt: { gte: monthStart },
+            status: 'COMPLETED',
+          },
+        },
+        _sum: {
+          finalPrice: true,
+          purchasePricePerPiece: true,
+        },
       }),
       prisma.sale.count({
         where: {
@@ -60,10 +73,16 @@ export async function GET() {
       }),
     ]);
 
+    const monthlySaleRevenue = Number(monthlyProfitAgg._sum.finalPrice || 0);
+    const monthlyPurchaseCost = Number(
+      monthlyProfitAgg._sum.purchasePricePerPiece || 0
+    );
+
     return successResponse({
       availableInventory,
       monthlySalesCount,
       monthlyRevenue: Number(monthlyRevenueAgg._sum.finalPrice || 0),
+      monthlyNetProfit: monthlySaleRevenue - monthlyPurchaseCost,
       openCustomOrders,
       recentSales: recentSales.map((sale) => ({
         ...sale,

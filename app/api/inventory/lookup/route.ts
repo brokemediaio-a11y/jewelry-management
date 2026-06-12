@@ -2,9 +2,10 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api-response';
 import { getCurrentSilverRate } from '@/lib/silver-rate-service';
-import { calculateItemSuggestedPrice } from '@/lib/pricing-engine';
+import { calculateItemSuggestedPrice, getQualityQuotient } from '@/lib/pricing-engine';
 import { getPricingConfig } from '@/lib/settings-utils';
 import { serializeInventoryItem } from '@/lib/inventory-utils';
+import { inventoryStoneInclude } from '@/lib/stone-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
       where: sku ? { sku } : { barcode: barcode! },
       include: {
         category: { select: { id: true, name: true } },
+        ...inventoryStoneInclude,
       },
     });
 
@@ -38,20 +40,24 @@ export async function GET(request: NextRequest) {
       getCurrentSilverRate(),
       getPricingConfig(),
     ]);
+    const stonePrice = item.stonePrice != null ? Number(item.stonePrice) : 0;
+    const pricingInput = {
+      todaySilverRate: ratePerGram,
+      weightGrams: Number(item.weightGrams),
+      stonePrice,
+      itemQuality: item.itemQuality,
+    };
     const suggestedSalePrice = calculateItemSuggestedPrice(
-      {
-        todaySilverRate: ratePerGram,
-        weightGrams: Number(item.weightGrams),
-        purchasePricePerPiece: Number(item.purchasePricePerPiece),
-        categoryName: item.category.name,
-      },
+      pricingInput,
       pricingConfig
     );
+    const qualityQuotient = getQualityQuotient(item.itemQuality, pricingConfig);
 
     return successResponse({
       ...serializeInventoryItem(item),
       silverRateAtSale: ratePerGram,
       suggestedSalePrice,
+      qualityQuotient,
     });
   } catch (error) {
     console.error('Failed to lookup inventory item:', error);

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarcodePreview } from "@/components/inventory/barcode-preview";
 import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
+import { formatItemQuality } from "@/lib/stone-utils";
 
 interface SaleHistory {
   sale: {
@@ -25,9 +26,9 @@ export interface InventoryDetailData {
   imageData: string;
   imageMimeType: string;
   weightGrams: number;
-  hasStone: boolean;
-  stoneType: string | null;
-  stoneDetails: string | null;
+  itemQuality: "PREMIUM" | "LOCAL";
+  stoneSummary?: string | null;
+  stonePrice?: number | null;
   silverRateAtPurchase: number;
   purchasePricePerGram: number;
   purchasePricePerPiece: number;
@@ -94,14 +95,21 @@ export function InventoryDetail({ item, onDelete, deleting = false }: InventoryD
             <DetailRow label="SKU" value={<span className="font-mono">{item.sku}</span>} />
             <DetailRow label="Barcode" value={<span className="font-mono">{item.barcode}</span>} />
             <DetailRow label="Category" value={item.category?.name || "—"} />
+            <DetailRow
+              label="Item Quality"
+              value={formatItemQuality(item.itemQuality)}
+            />
             <DetailRow label="Weight" value={`${item.weightGrams.toFixed(3)} g`} />
             <DetailRow
               label="Silver Rate at Purchase"
               value={`${formatPKR(item.silverRateAtPurchase)}/g`}
             />
-            <DetailRow label="Stone" value={item.hasStone ? "Yes" : "No"} />
-            {item.hasStone && (
-              <DetailRow label="Stone Type" value={item.stoneType || "—"} />
+            <DetailRow
+              label="Stone Configuration"
+              value={item.stoneSummary || "No stone"}
+            />
+            {item.stonePrice != null && item.stonePrice > 0 && (
+              <DetailRow label="Stone Price" value={formatPKR(item.stonePrice)} />
             )}
             <DetailRow
               label="Purchase Price per Gram"

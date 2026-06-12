@@ -28,17 +28,45 @@ import { BarcodePreview } from "@/components/inventory/barcode-preview";
 import { generateSKU } from "@/lib/sku-utils";
 import { formatPKR } from "@/lib/currency-utils";
 
-const inventoryFormSchema = z.object({
-  imageData: z.string().min(1, "Product image is required"),
-  imageMimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-  categoryId: z.string().min(1, "Category is required"),
-  weightGrams: z.string().min(1, "Weight is required"),
-  silverRateAtPurchase: z.string().min(1, "Silver rate is required"),
-  hasStone: z.enum(["yes", "no"]),
-  stoneType: z.string().optional(),
-  quantity: z.string().min(1, "Quantity is required"),
-  purchasePricePerGram: z.string().min(1, "Purchase price per gram is required"),
-});
+const inventoryFormSchema = z
+  .object({
+    imageData: z.string().min(1, "Product image is required"),
+    imageMimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    categoryId: z.string().min(1, "Category is required"),
+    itemQuality: z.enum(["PREMIUM", "LOCAL"], {
+      message: "Item quality is required",
+    }),
+    hasStoneConfig: z.enum(["yes", "no"]),
+    stoneTypeId: z.string().optional(),
+    stoneColorId: z.string().optional(),
+    stoneCutId: z.string().optional(),
+    stoneClarityId: z.string().optional(),
+    stonePrice: z.string().optional(),
+    weightGrams: z.string().min(1, "Weight is required"),
+    silverRateAtPurchase: z.string().min(1, "Silver rate is required"),
+    quantity: z.string().min(1, "Quantity is required"),
+    purchasePricePerGram: z.string().min(1, "Purchase price per gram is required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.hasStoneConfig !== "yes") return;
+
+    if (!data.stoneTypeId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Stone type is required", path: ["stoneTypeId"] });
+    }
+    if (!data.stoneColorId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Stone color is required", path: ["stoneColorId"] });
+    }
+    if (!data.stoneCutId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Stone cut is required", path: ["stoneCutId"] });
+    }
+    if (!data.stoneClarityId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Stone clarity is required", path: ["stoneClarityId"] });
+    }
+    const price = Number.parseFloat(data.stonePrice || "");
+    if (!Number.isFinite(price) || price < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Stone price is required", path: ["stonePrice"] });
+    }
+  });
 
 type InventoryFormValues = z.infer<typeof inventoryFormSchema>;
 
@@ -47,16 +75,33 @@ interface Category {
   name: string;
 }
 
+interface StoneOption {
+  id: string;
+  name: string;
+}
+
+interface StoneOptionsGrouped {
+  types: StoneOption[];
+  colors: StoneOption[];
+  cuts: StoneOption[];
+  clarities: StoneOption[];
+}
+
 interface InventoryFormProps {
   categories: Category[];
   onSubmit: (data: {
     imageData: string;
     imageMimeType: "image/jpeg" | "image/png" | "image/webp";
     categoryId: string;
+    itemQuality: "PREMIUM" | "LOCAL";
+    hasStoneConfig: boolean;
+    stoneTypeId: string | null;
+    stoneColorId: string | null;
+    stoneCutId: string | null;
+    stoneClarityId: string | null;
+    stonePrice: number | null;
     weightGrams: number;
     silverRateAtPurchase: number;
-    hasStone: boolean;
-    stoneType: string | null;
     quantity: number;
     purchasePricePerGram: number;
   }) => Promise<void>;
@@ -66,6 +111,13 @@ interface InventoryFormProps {
 export function InventoryForm({ categories, onSubmit, isSubmitting = false }: InventoryFormProps) {
   const [rateDate, setRateDate] = useState("");
   const [rateLoading, setRateLoading] = useState(true);
+  const [stonesLoading, setStonesLoading] = useState(true);
+  const [stoneOptions, setStoneOptions] = useState<StoneOptionsGrouped>({
+    types: [],
+    colors: [],
+    cuts: [],
+    clarities: [],
+  });
 
   const form = useForm<InventoryFormValues>({
     resolver: zodResolver(inventoryFormSchema),
@@ -73,10 +125,15 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
       imageData: "",
       imageMimeType: "image/jpeg",
       categoryId: "",
+      itemQuality: undefined,
+      hasStoneConfig: "no",
+      stoneTypeId: "",
+      stoneColorId: "",
+      stoneCutId: "",
+      stoneClarityId: "",
+      stonePrice: "",
       weightGrams: "",
       silverRateAtPurchase: "",
-      hasStone: "no",
-      stoneType: "",
       quantity: "1",
       purchasePricePerGram: "",
     },
@@ -87,7 +144,7 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
   const categoryId = form.watch("categoryId");
   const weightGrams = form.watch("weightGrams");
   const purchasePricePerGram = form.watch("purchasePricePerGram");
-  const hasStone = form.watch("hasStone");
+  const hasStoneConfig = form.watch("hasStoneConfig");
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const previewSku = selectedCategory ? generateSKU(selectedCategory.name, 1) : "";
@@ -111,15 +168,33 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
       .finally(() => setRateLoading(false));
   }, [form]);
 
+  useEffect(() => {
+    fetch("/api/stones")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setStoneOptions(data.data);
+        }
+      })
+      .finally(() => setStonesLoading(false));
+  }, []);
+
   const handleSubmit = async (values: InventoryFormValues) => {
+    const withStone = values.hasStoneConfig === "yes";
+
     await onSubmit({
       imageData: values.imageData,
       imageMimeType: values.imageMimeType,
       categoryId: values.categoryId,
+      itemQuality: values.itemQuality,
+      hasStoneConfig: withStone,
+      stoneTypeId: withStone ? values.stoneTypeId || null : null,
+      stoneColorId: withStone ? values.stoneColorId || null : null,
+      stoneCutId: withStone ? values.stoneCutId || null : null,
+      stoneClarityId: withStone ? values.stoneClarityId || null : null,
+      stonePrice: withStone ? Number.parseFloat(values.stonePrice || "0") : null,
       weightGrams: Number.parseFloat(values.weightGrams),
       silverRateAtPurchase: Number.parseFloat(values.silverRateAtPurchase),
-      hasStone: values.hasStone === "yes",
-      stoneType: values.hasStone === "yes" ? values.stoneType || null : null,
       quantity: Number.parseInt(values.quantity, 10),
       purchasePricePerGram: Number.parseFloat(values.purchasePricePerGram),
     });
@@ -176,6 +251,186 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
 
         <FormField
           control={form.control}
+          name="itemQuality"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Item Quality *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select quality" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="PREMIUM">Premium</SelectItem>
+                  <SelectItem value="LOCAL">Local</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="hasStoneConfig"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Stone Configuration</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="no">No stone</SelectItem>
+                  <SelectItem value="yes">Configure stone</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription>Optional — leave as &quot;No stone&quot; for items without stones</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {hasStoneConfig === "yes" && (
+          <div className="space-y-4 rounded-lg border p-4">
+            <p className="text-sm font-medium">Stone details</p>
+            {stonesLoading ? (
+              <p className="text-sm text-muted-foreground">Loading stone options...</p>
+            ) : (
+              <>
+                <FormField
+                  control={form.control}
+                  name="stoneTypeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stone Type *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select stone type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {stoneOptions.types.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="stoneColorId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stone Color *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select stone color" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {stoneOptions.colors.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="stoneCutId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stone Cut *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select stone cut" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {stoneOptions.cuts.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="stoneClarityId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stone Clarity *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select stone clarity" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {stoneOptions.clarities.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="stonePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stone Price (PKR) *</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0" placeholder="e.g. 5000" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {stoneOptions.types.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No stone options found.{" "}
+                    <a href="/dashboard/stones" className="underline">
+                      Add stone options
+                    </a>{" "}
+                    first.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <FormField
+          control={form.control}
           name="weightGrams"
           render={({ field }) => (
             <FormItem>
@@ -214,44 +469,6 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="hasStone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Stone</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="no">No</SelectItem>
-                  <SelectItem value="yes">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {hasStone === "yes" && (
-          <FormField
-            control={form.control}
-            name="stoneType"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stone Type</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g. Zircon, Onyx" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         <FormField
           control={form.control}

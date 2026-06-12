@@ -11,10 +11,12 @@ export interface CartItem {
   imageData: string;
   categoryName: string;
   weightGrams: number;
-  stoneType: string | null;
+  itemQuality: 'PREMIUM' | 'LOCAL';
+  stoneSummary: string | null;
+  stonePrice: number | null;
   silverRateAtPurchase: number;
   purchasePricePerPiece: number;
-  categoryQuotient: number;
+  qualityQuotient: number;
   suggestedSalePrice: number;
   finalPrice: number;
 }

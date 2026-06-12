@@ -5,17 +5,10 @@ import { requireAdmin, requireAuth } from '@/lib/auth';
 import { DEFAULT_PRICING_CONFIG, validatePricingFormula } from '@/lib/pricing-config';
 import { getPricingConfig, savePricingConfig } from '@/lib/settings-utils';
 
-const quotientRuleSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  keywords: z.array(z.string().min(1)).min(1),
-  quotient: z.number().positive('Quotient must be positive'),
-});
-
 const pricingConfigSchema = z.object({
-  defaultQuotient: z.number().positive('Default quotient must be positive'),
   formula: z.string().min(1, 'Formula is required'),
-  quotientRules: z.array(quotientRuleSchema),
+  premiumQuotient: z.number().positive('Premium quotient must be positive'),
+  localQuotient: z.number().positive('Local quotient must be positive'),
 });
 
 export async function GET() {

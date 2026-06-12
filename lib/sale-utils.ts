@@ -39,6 +39,8 @@ export function serializeSaleItem<T extends Record<string, unknown>>(item: T) {
     categoryQuotient: toNumber(item.categoryQuotient as DecimalLike),
     suggestedSalePrice: toNumber(item.suggestedSalePrice as DecimalLike),
     finalPrice: toNumber(item.finalPrice as DecimalLike),
+    stonePrice:
+      item.stonePrice != null ? toNumber(item.stonePrice as DecimalLike) : null,
   };
 }
 

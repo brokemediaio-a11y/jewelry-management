@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
+import { formatItemQuality } from "@/lib/stone-utils";
 
 export interface InventoryItemRow {
   id: string;
@@ -21,6 +22,8 @@ export interface InventoryItemRow {
   barcode: string;
   imageData?: string;
   weightGrams: number;
+  itemQuality?: "PREMIUM" | "LOCAL";
+  stoneSummary?: string | null;
   silverRateAtPurchase: number;
   purchasePricePerPiece: number;
   status: "AVAILABLE" | "SOLD" | "RESERVED";
@@ -64,6 +67,8 @@ export function InventoryTable({ items, onDelete }: InventoryTableProps) {
           <TableHead>SKU</TableHead>
           <TableHead>Barcode</TableHead>
           <TableHead>Category</TableHead>
+          <TableHead>Quality</TableHead>
+          <TableHead>Stone</TableHead>
           <TableHead>Weight</TableHead>
           <TableHead>Purchase/Piece</TableHead>
           <TableHead>Silver Rate</TableHead>
@@ -91,6 +96,12 @@ export function InventoryTable({ items, onDelete }: InventoryTableProps) {
             <TableCell className="font-mono text-sm">{item.sku}</TableCell>
             <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
             <TableCell>{item.category?.name || "—"}</TableCell>
+            <TableCell>
+              {item.itemQuality ? formatItemQuality(item.itemQuality) : "—"}
+            </TableCell>
+            <TableCell className="max-w-[180px] truncate text-sm">
+              {item.stoneSummary || "—"}
+            </TableCell>
             <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
             <TableCell>{formatPKR(item.purchasePricePerPiece)}</TableCell>
             <TableCell>{formatPKR(item.silverRateAtPurchase)}/g</TableCell>

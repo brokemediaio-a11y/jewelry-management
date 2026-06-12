@@ -1,0 +1,18 @@
+.barcode-scanner-region [id^="barcode-scanner-"] {
+  width: 100%;
+  min-height: 240px;
+  position: relative;
+}
+
+.barcode-scanner-region video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  display: block !important;
+}
+
+.barcode-scanner-region img {
+  display: none !important;
+}

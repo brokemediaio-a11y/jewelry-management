@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Loader2, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Calculator, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,20 +18,16 @@ import { formatPKR } from "@/lib/currency-utils";
 import {
   DEFAULT_PRICING_CONFIG,
   type PricingConfig,
-  type QuotientRule,
 } from "@/lib/pricing-config";
-import {
-  calculateItemSuggestedPrice,
-  getCategoryQuotient,
-} from "@/lib/pricing-engine";
+import { calculateItemSuggestedPrice } from "@/lib/pricing-engine";
 
-function previewPrice(config: PricingConfig): number {
+function previewPrice(config: PricingConfig, quality: "PREMIUM" | "LOCAL"): number {
   return calculateItemSuggestedPrice(
     {
       todaySilverRate: 602,
       weightGrams: 25,
-      purchasePricePerPiece: 5000,
-      categoryName: "Real Premium Necklaces",
+      stonePrice: 5000,
+      itemQuality: quality,
     },
     config
   );
@@ -59,44 +55,21 @@ export function SettingsPricing() {
       .finally(() => setLoading(false));
   }, []);
 
-  const samplePrice = useMemo(() => {
+  const premiumPreview = useMemo(() => {
     try {
-      return previewPrice(config);
+      return previewPrice(config, "PREMIUM");
     } catch {
       return null;
     }
   }, [config]);
 
-  const updateRule = (index: number, patch: Partial<QuotientRule>) => {
-    setConfig((prev) => ({
-      ...prev,
-      quotientRules: prev.quotientRules.map((rule, i) =>
-        i === index ? { ...rule, ...patch } : rule
-      ),
-    }));
-  };
-
-  const addRule = () => {
-    setConfig((prev) => ({
-      ...prev,
-      quotientRules: [
-        ...prev.quotientRules,
-        {
-          id: `rule_${Date.now()}`,
-          label: "New Rule",
-          keywords: ["keyword"],
-          quotient: prev.defaultQuotient,
-        },
-      ],
-    }));
-  };
-
-  const removeRule = (index: number) => {
-    setConfig((prev) => ({
-      ...prev,
-      quotientRules: prev.quotientRules.filter((_, i) => i !== index),
-    }));
-  };
+  const localPreview = useMemo(() => {
+    try {
+      return previewPrice(config, "LOCAL");
+    } catch {
+      return null;
+    }
+  }, [config]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -167,8 +140,8 @@ export function SettingsPricing() {
             <CardTitle>Sale Price Formula</CardTitle>
           </div>
           <CardDescription>
-            Configure how suggested sale prices are calculated. Rules are evaluated
-            top to bottom — first keyword match wins.
+            Suggested sale price uses today&apos;s silver rate, item weight, stone
+            price, and a quotient based on item quality (Premium or Local).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -196,111 +169,76 @@ export function SettingsPricing() {
             />
             <p className="text-xs text-muted-foreground">
               Variables: <code>silverRate</code>, <code>weightGrams</code>,{" "}
-              <code>purchasePricePerPiece</code>, <code>quotient</code>. Use standard
-              math operators (+, -, *, /, parentheses).
+              <code>stonePrice</code>, <code>quotient</code>. Use standard math
+              operators (+, -, *, /, parentheses).
             </p>
             <p className="text-xs text-muted-foreground">
               Default:{" "}
               <code>
-                ((silverRate * weightGrams) + purchasePricePerPiece) * quotient
+                ((silverRate * weightGrams) + stonePrice) * quotient
               </code>
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="defaultQuotient">Default category quotient</Label>
-            <Input
-              id="defaultQuotient"
-              type="number"
-              min={0.01}
-              step="0.01"
-              className="max-w-xs"
-              value={config.defaultQuotient}
-              onChange={(e) =>
-                setConfig((prev) => ({
-                  ...prev,
-                  defaultQuotient: Number(e.target.value),
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Used when no keyword rule matches the category name.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Category quotient rules</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addRule}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Rule
-              </Button>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="premiumQuotient">Premium quality quotient</Label>
+              <Input
+                id="premiumQuotient"
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={config.premiumQuotient}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    premiumQuotient: Number(e.target.value),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Applied when item quality is Premium (default: 4)
+              </p>
             </div>
 
-            {config.quotientRules.map((rule, index) => (
-              <div
-                key={rule.id}
-                className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_1fr_120px_auto]"
-              >
-                <div className="space-y-1">
-                  <Label className="text-xs">Label</Label>
-                  <Input
-                    value={rule.label}
-                    onChange={(e) => updateRule(index, { label: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Keywords (comma-separated)</Label>
-                  <Input
-                    value={rule.keywords.join(", ")}
-                    onChange={(e) =>
-                      updateRule(index, {
-                        keywords: e.target.value
-                          .split(",")
-                          .map((k) => k.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="real_premium, real premium"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Quotient</Label>
-                  <Input
-                    type="number"
-                    min={0.01}
-                    step="0.01"
-                    value={rule.quotient}
-                    onChange={(e) =>
-                      updateRule(index, { quotient: Number(e.target.value) })
-                    }
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeRule(index)}
-                    disabled={config.quotientRules.length <= 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+            <div className="space-y-2">
+              <Label htmlFor="localQuotient">Local quality quotient</Label>
+              <Input
+                id="localQuotient"
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={config.localQuotient}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    localQuotient: Number(e.target.value),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Applied when item quality is Local (default: 2)
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-lg bg-muted/50 p-4 text-sm">
+          <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
             <p className="font-medium">Live preview</p>
             <p className="text-muted-foreground">
-              Real Premium Necklaces · 25g · Rs. 602/g silver · Rs. 5,000 purchase/piece
+              25g · Rs. 602/g silver · Rs. 5,000 stone price
             </p>
-            <p className="mt-1">
-              Quotient: ×
-              {getCategoryQuotient("Real Premium Necklaces", config)} →{" "}
-              {samplePrice != null ? (
-                <span className="font-semibold">{formatPKR(samplePrice)}</span>
+            <p>
+              Premium (×{config.premiumQuotient}):{" "}
+              {premiumPreview != null ? (
+                <span className="font-semibold">{formatPKR(premiumPreview)}</span>
+              ) : (
+                <span className="text-destructive">Invalid formula</span>
+              )}
+            </p>
+            <p>
+              Local (×{config.localQuotient}):{" "}
+              {localPreview != null ? (
+                <span className="font-semibold">{formatPKR(localPreview)}</span>
               ) : (
                 <span className="text-destructive">Invalid formula</span>
               )}

@@ -8,6 +8,7 @@ import {
   Package,
   ShoppingCart,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ interface DashboardStats {
   availableInventory: number;
   monthlySalesCount: number;
   monthlyRevenue: number;
+  monthlyNetProfit: number;
   openCustomOrders: number;
   recentSales: RecentSale[];
 }
@@ -111,7 +113,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Available Inventory</CardTitle>
@@ -148,6 +150,21 @@ export default function DashboardPage() {
               {loading ? "—" : formatPKR(stats?.monthlyRevenue ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">Completed sales (PKR)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Profit This Month</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : formatPKR(stats?.monthlyNetProfit ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sale price minus purchase cost
+            </p>
           </CardContent>
         </Card>
 

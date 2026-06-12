@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FolderTree,
+  Gem,
   Users,
   ShoppingCart,
   Warehouse,
@@ -25,6 +26,11 @@ const navItems = [
     title: "Categories",
     href: "/dashboard/categories",
     icon: FolderTree,
+  },
+  {
+    title: "Stones",
+    href: "/dashboard/stones",
+    icon: Gem,
   },
   {
     title: "Customers",

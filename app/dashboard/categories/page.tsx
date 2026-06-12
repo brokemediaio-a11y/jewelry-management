@@ -162,7 +162,7 @@ export default function CategoriesPage() {
         <CardHeader>
           <CardTitle>Categories List</CardTitle>
           <CardDescription>
-            Category names affect sale pricing quotients (real, real_premium, zircon, onix)
+            Organize products by type — sale pricing uses item quality, not category
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

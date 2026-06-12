@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
+import { formatItemQuality, formatStoneSnapshot } from "@/lib/stone-utils";
 import { CloseSaleDialog } from "@/components/sales/close-sale-dialog";
 import "./print.css";
 
@@ -36,11 +37,16 @@ interface SaleItem {
   categoryQuotient: number;
   suggestedSalePrice: number;
   finalPrice: number;
+  itemQuality: "PREMIUM" | "LOCAL";
+  stoneTypeName: string | null;
+  stoneColorName: string | null;
+  stoneCutName: string | null;
+  stoneClarityName: string | null;
+  stonePrice: number | null;
   inventoryItem: {
     sku: string;
     barcode: string;
     imageData: string;
-    stoneType: string | null;
     category?: { name: string };
   };
 }
@@ -273,6 +279,8 @@ export default function SaleDetailPage() {
               <TableHead>Item</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Quality</TableHead>
+              <TableHead>Stone</TableHead>
               <TableHead>Weight</TableHead>
               <TableHead className="text-right">Suggested</TableHead>
               <TableHead className="text-right">Final</TableHead>
@@ -291,11 +299,10 @@ export default function SaleDetailPage() {
                 <TableCell className="font-mono text-sm">
                   {item.inventoryItem.sku}
                 </TableCell>
-                <TableCell>
-                  {item.inventoryItem.category?.name || "—"}
-                  {item.inventoryItem.stoneType
-                    ? ` (${item.inventoryItem.stoneType})`
-                    : ""}
+                <TableCell>{item.inventoryItem.category?.name || "—"}</TableCell>
+                <TableCell>{formatItemQuality(item.itemQuality)}</TableCell>
+                <TableCell className="max-w-[200px] text-sm">
+                  {formatStoneSnapshot(item) || "—"}
                 </TableCell>
                 <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
                 <TableCell className="text-right">

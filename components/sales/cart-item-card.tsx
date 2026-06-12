@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
+import { formatItemQuality } from "@/lib/stone-utils";
+import { getMinSalePrice } from "@/lib/pricing-engine";
 import { CartItem } from "@/stores/sale-session-store";
 
 interface CartItemCardProps {
@@ -21,6 +23,9 @@ export function CartItemCard({
   onFinalPriceChange,
   onRemove,
 }: CartItemCardProps) {
+  const minSalePrice = getMinSalePrice(item.purchasePricePerPiece);
+  const belowMin = item.finalPrice < minSalePrice;
+
   return (
     <Card>
       <CardContent className="flex gap-4 p-4">
@@ -35,8 +40,9 @@ export function CartItemCard({
             <div>
               <p className="font-mono text-sm font-semibold">{item.sku}</p>
               <p className="text-sm text-muted-foreground">
-                {item.categoryName} · {item.weightGrams.toFixed(3)} g
-                {item.stoneType ? ` · ${item.stoneType}` : ""}
+                {item.categoryName} · {item.weightGrams.toFixed(3)} g ·{" "}
+                {formatItemQuality(item.itemQuality)}
+                {item.stoneSummary ? ` · ${item.stoneSummary}` : ""}
               </p>
             </div>
             <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
@@ -47,8 +53,8 @@ export function CartItemCard({
           <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
             <span>Silver @ purchase: {formatPKR(item.silverRateAtPurchase)}/g</span>
             <span>Today&apos;s rate: {formatPKR(silverRateAtSale)}/g</span>
-            <span>Quotient: ×{item.categoryQuotient}</span>
-            <span>Purchase/piece: {formatPKR(item.purchasePricePerPiece)}</span>
+            <span>Quality quotient: ×{item.qualityQuotient}</span>
+            <span>Min sale price: {formatPKR(minSalePrice)}</span>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -60,11 +66,17 @@ export function CartItemCard({
               <p className="mb-1 text-xs text-muted-foreground">Final price (PKR)</p>
               <Input
                 type="number"
-                min={0}
+                min={minSalePrice}
                 step="0.01"
                 value={item.finalPrice}
                 onChange={(e) => onFinalPriceChange(Number(e.target.value))}
+                className={belowMin ? "border-destructive" : undefined}
               />
+              {belowMin && (
+                <p className="mt-1 text-xs text-destructive">
+                  Cannot be less than purchase price ({formatPKR(minSalePrice)})
+                </p>
+              )}
             </div>
           </div>
         </div>

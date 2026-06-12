@@ -7,6 +7,8 @@ import { validateImageBase64 } from '@/lib/image-utils';
 import { generateSkuBatch } from '@/lib/sku-generator';
 import { roundPKR } from '@/lib/currency-utils';
 import { serializeInventoryItem } from '@/lib/inventory-utils';
+import { inventoryStoneInclude } from '@/lib/stone-utils';
+import { buildInventoryStoneCreateData } from '@/lib/inventory-stone-data';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' },
         include: {
           category: { select: { id: true, name: true } },
+          ...inventoryStoneInclude,
         },
       }),
       prisma.inventoryItem.count({ where }),
@@ -72,6 +75,7 @@ export async function POST(request: NextRequest) {
     const quantity = Number(data.quantity);
 
     const skus = await generateSkuBatch(category.name, quantity);
+    const stoneData = buildInventoryStoneCreateData(data);
 
     const createdItems = await prisma.$transaction(
       skus.map((sku) =>
@@ -83,9 +87,7 @@ export async function POST(request: NextRequest) {
             imageData: data.imageData,
             imageMimeType: data.imageMimeType,
             weightGrams: new Prisma.Decimal(weightGrams),
-            hasStone: data.hasStone,
-            stoneType: data.hasStone ? data.stoneType || null : null,
-            stoneDetails: data.hasStone ? data.stoneDetails || null : null,
+            ...stoneData,
             silverRateAtPurchase: new Prisma.Decimal(Number(data.silverRateAtPurchase)),
             purchasePricePerGram: new Prisma.Decimal(purchasePricePerGram),
             purchasePricePerPiece: new Prisma.Decimal(purchasePricePerPiece),

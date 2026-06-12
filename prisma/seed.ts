@@ -45,7 +45,26 @@ async function main() {
     });
   }
 
-  console.log('Seed completed: admin user + categories');
+  const stoneOptions = [
+    { kind: 'TYPE' as const, names: ['Ruby', 'Emerald', 'Sapphire', 'Rock', 'Beads', 'Zircon', 'Feroza'] },
+    { kind: 'COLOR' as const, names: ['Glassy', 'Gray', 'Deep Green'] },
+    { kind: 'CUT' as const, names: ['Hexagonal', 'Round', 'Solitaire', 'Triangle'] },
+    { kind: 'CLARITY' as const, names: ['Black', 'Full Clear', 'Hair', 'Mild'] },
+  ];
+
+  for (const group of stoneOptions) {
+    for (const name of group.names) {
+      await prisma.stoneOption.upsert({
+        where: {
+          kind_name: { kind: group.kind, name },
+        },
+        update: {},
+        create: { kind: group.kind, name },
+      });
+    }
+  }
+
+  console.log('Seed completed: admin user + categories + stone options');
 }
 
 main()

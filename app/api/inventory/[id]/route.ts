@@ -6,6 +6,8 @@ import { updateInventorySchema } from '@/lib/validations';
 import { validateImageBase64 } from '@/lib/image-utils';
 import { roundPKR } from '@/lib/currency-utils';
 import { serializeInventoryItem } from '@/lib/inventory-utils';
+import { inventoryStoneInclude } from '@/lib/stone-utils';
+import { buildInventoryStoneUpdateData } from '@/lib/inventory-stone-data';
 
 export async function GET(
   _request: NextRequest,
@@ -17,6 +19,7 @@ export async function GET(
       where: { id },
       include: {
         category: { select: { id: true, name: true } },
+        ...inventoryStoneInclude,
         saleItems: {
           take: 1,
           orderBy: { createdAt: 'desc' },
@@ -84,14 +87,7 @@ export async function PUT(
     if (data.silverRateAtPurchase !== undefined) {
       updateData.silverRateAtPurchase = new Prisma.Decimal(Number(data.silverRateAtPurchase));
     }
-    if (data.hasStone !== undefined) {
-      updateData.hasStone = data.hasStone;
-      updateData.stoneType = data.hasStone ? data.stoneType || null : null;
-      updateData.stoneDetails = data.hasStone ? data.stoneDetails || null : null;
-    } else if (data.stoneType !== undefined || data.stoneDetails !== undefined) {
-      updateData.stoneType = data.stoneType;
-      updateData.stoneDetails = data.stoneDetails;
-    }
+    Object.assign(updateData, buildInventoryStoneUpdateData(data));
     if (data.purchasePricePerGram !== undefined) {
       updateData.purchasePricePerGram = new Prisma.Decimal(purchasePricePerGram);
     }
@@ -107,6 +103,7 @@ export async function PUT(
       data: updateData,
       include: {
         category: { select: { id: true, name: true } },
+        ...inventoryStoneInclude,
       },
     });
 

@@ -21,7 +21,8 @@ import {
   DEFAULT_PRICING_CONFIG,
   type PricingConfig,
 } from "@/lib/pricing-config";
-import { getCategoryQuotient } from "@/lib/pricing-engine";
+import { getMinSalePrice, getQualityQuotient } from "@/lib/pricing-engine";
+import { formatPKR } from "@/lib/currency-utils";
 import { useSaleSessionStore } from "@/stores/sale-session-store";
 
 export default function NewSalePage() {
@@ -100,11 +101,13 @@ export default function NewSalePage() {
           imageData: item.imageData,
           categoryName: item.category?.name || "",
           weightGrams: item.weightGrams,
-          stoneType: item.stoneType,
+          itemQuality: item.itemQuality,
+          stoneSummary: item.stoneSummary ?? null,
+          stonePrice: item.stonePrice ?? null,
           silverRateAtPurchase: item.silverRateAtPurchase,
           purchasePricePerPiece: item.purchasePricePerPiece,
-          categoryQuotient: getCategoryQuotient(
-            item.category?.name || "",
+          qualityQuotient: item.qualityQuotient ?? getQualityQuotient(
+            item.itemQuality,
             pricingConfig
           ),
           suggestedSalePrice: item.suggestedSalePrice,
@@ -126,6 +129,17 @@ export default function NewSalePage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
+
+    const belowMin = cartItems.find(
+      (item) => item.finalPrice < getMinSalePrice(item.purchasePricePerPiece)
+    );
+    if (belowMin) {
+      setSubmitError(
+        `Final price for ${belowMin.sku} cannot be less than purchase price (${formatPKR(belowMin.purchasePricePerPiece)})`
+      );
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const body: Record<string, unknown> = {

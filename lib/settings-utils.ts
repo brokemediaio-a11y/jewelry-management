@@ -63,7 +63,7 @@ export async function savePricingConfig(
   await setSetting(
     PRICING_CONFIG_KEY,
     JSON.stringify(config),
-    'Sale price formula and category quotient rules',
+    'Sale price formula and quality-based quotient settings',
     updatedBy
   );
 }

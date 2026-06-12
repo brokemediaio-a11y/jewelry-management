@@ -14,10 +14,12 @@ import {
   calculateItemSuggestedPrice,
   calculateFinalTotal,
   calculateSuggestedTotal,
-  getCategoryQuotient,
+  getQualityQuotient,
+  getMinSalePrice,
 } from '@/lib/pricing-engine';
 import { getPricingConfig } from '@/lib/settings-utils';
 import { roundPKR } from '@/lib/currency-utils';
+import { inventoryStoneInclude } from '@/lib/stone-utils';
 import {
   generateInvoiceNumber,
   serializeSale,
@@ -101,7 +103,10 @@ export async function POST(request: NextRequest) {
 
     const inventoryItems = await prisma.inventoryItem.findMany({
       where: { id: { in: inventoryIds } },
-      include: { category: { select: { name: true } } },
+      include: {
+        category: { select: { name: true } },
+        ...inventoryStoneInclude,
+      },
     });
 
     if (inventoryItems.length !== inventoryIds.length) {
@@ -127,21 +132,28 @@ export async function POST(request: NextRequest) {
       const inv = inventoryItems.find((i) => i.id === input.inventoryItemId)!;
       const weightGrams = Number(inv.weightGrams);
       const purchasePricePerPiece = Number(inv.purchasePricePerPiece);
-      const categoryName = inv.category.name;
-      const categoryQuotient = getCategoryQuotient(categoryName, pricingConfig);
+      const stonePrice = inv.stonePrice != null ? Number(inv.stonePrice) : 0;
+      const qualityQuotient = getQualityQuotient(inv.itemQuality, pricingConfig);
       const suggestedSalePrice = calculateItemSuggestedPrice(
         {
           todaySilverRate: silverRateAtSale,
           weightGrams,
-          purchasePricePerPiece,
-          categoryName,
+          stonePrice,
+          itemQuality: inv.itemQuality,
         },
         pricingConfig
       );
       const finalPrice = roundPKR(Number(input.finalPrice));
+      const minSalePrice = getMinSalePrice(purchasePricePerPiece);
 
       if (finalPrice <= 0) {
         throw new Error(`Final price must be positive for ${inv.sku}`);
+      }
+
+      if (finalPrice < minSalePrice) {
+        throw new Error(
+          `Final price for ${inv.sku} cannot be less than purchase price (Rs. ${minSalePrice})`
+        );
       }
 
       return {
@@ -150,9 +162,15 @@ export async function POST(request: NextRequest) {
         silverRateAtPurchase: Number(inv.silverRateAtPurchase),
         purchasePricePerPiece,
         silverRateAtSale,
-        categoryQuotient,
+        categoryQuotient: qualityQuotient,
         suggestedSalePrice,
         finalPrice,
+        itemQuality: inv.itemQuality,
+        stoneTypeName: inv.stoneType?.name ?? null,
+        stoneColorName: inv.stoneColor?.name ?? null,
+        stoneCutName: inv.stoneCut?.name ?? null,
+        stoneClarityName: inv.stoneClarity?.name ?? null,
+        stonePrice: inv.stonePrice != null ? Number(inv.stonePrice) : null,
       };
     });
 
@@ -213,6 +231,15 @@ export async function POST(request: NextRequest) {
               categoryQuotient: new Prisma.Decimal(item.categoryQuotient),
               suggestedSalePrice: new Prisma.Decimal(item.suggestedSalePrice),
               finalPrice: new Prisma.Decimal(item.finalPrice),
+              itemQuality: item.itemQuality,
+              stoneTypeName: item.stoneTypeName,
+              stoneColorName: item.stoneColorName,
+              stoneCutName: item.stoneCutName,
+              stoneClarityName: item.stoneClarityName,
+              stonePrice:
+                item.stonePrice != null
+                  ? new Prisma.Decimal(item.stonePrice)
+                  : null,
             })),
           },
         },

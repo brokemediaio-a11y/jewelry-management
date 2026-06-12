@@ -40,10 +40,15 @@ export default function NewInventoryPage() {
     imageData: string;
     imageMimeType: "image/jpeg" | "image/png" | "image/webp";
     categoryId: string;
+    itemQuality: "PREMIUM" | "LOCAL";
+    hasStoneConfig: boolean;
+    stoneTypeId: string | null;
+    stoneColorId: string | null;
+    stoneCutId: string | null;
+    stoneClarityId: string | null;
+    stonePrice: number | null;
     weightGrams: number;
     silverRateAtPurchase: number;
-    hasStone: boolean;
-    stoneType: string | null;
     quantity: number;
     purchasePricePerGram: number;
   }) => {
