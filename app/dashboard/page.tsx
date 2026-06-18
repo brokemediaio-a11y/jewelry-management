@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
-  Eye,
+  Banknote,
   Package,
   ShoppingCart,
   TrendingUp,
@@ -19,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -28,8 +27,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatPKR } from "@/lib/currency-utils";
+import {
+  formatSaleStatus,
+  saleStatusVariant,
+} from "@/lib/display-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { IconTooltipButton } from "@/components/ui/icon-tooltip-button";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { TableSkeleton } from "@/components/dashboard/table-skeleton";
+import { EmptyState } from "@/components/dashboard/empty-state";
 import { TodaysSilverRateCard } from "@/components/dashboard/todays-silver-rate";
+import { Eye, ShoppingBag } from "lucide-react";
 
 interface RecentSale {
   id: string;
@@ -53,18 +67,22 @@ interface DashboardStats {
   recentSales: RecentSale[];
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    COMPLETED: "bg-green-100 text-green-800 border-green-200",
-    OPEN: "bg-amber-100 text-amber-800 border-amber-200",
-    CANCELLED: "bg-muted text-muted-foreground",
-  };
+function formatSaleDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const isToday =
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
 
-  return (
-    <Badge variant="outline" className={styles[status] || ""}>
-      {status}
-    </Badge>
-  );
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function DashboardPage() {
@@ -88,22 +106,15 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Overview of your jewelry shop management
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/dashboard/reports/profit-loss?period=this-month">Financial report</Link>
-          </Button>
-          <Button asChild>
+      <PageHeader
+        title="Dashboard"
+        description="Overview of your jewelry shop"
+        actions={
+          <Button asChild variant="bronze">
             <Link href="/dashboard/sales/new">New Sale</Link>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {error && (
         <Alert variant="destructive">
@@ -112,105 +123,104 @@ export default function DashboardPage() {
       )}
 
       {stats && stats.openCustomOrders > 0 && (
-        <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+        <Alert className="border-warning-border bg-warning-muted text-[var(--warning)]">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Open custom orders</AlertTitle>
           <AlertDescription>
             {stats.openCustomOrders} custom order
             {stats.openCustomOrders !== 1 ? "s" : ""} awaiting pickup or final
             payment.{" "}
-            <Link href="/dashboard/sales" className="font-medium underline">
-              View sales
+            <Link
+              href="/dashboard/sales?status=OPEN&saleType=CUSTOM_ORDER"
+              className="font-medium underline"
+            >
+              View open orders
             </Link>
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => window.location.href = "/dashboard/reports/cash-position?period=this-month"}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
+            <Banknote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold tabular-nums">
+              {loading ? "—" : formatPKR(stats?.cashInHand ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">Cash sales − cash expenses</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => window.location.href = "/dashboard/reports/sales-register?period=this-month"}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Revenue This Month</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold tabular-nums">
+              {loading ? "—" : formatPKR(stats?.monthlyRevenue ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">Completed sales</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => window.location.href = "/dashboard/reports/profit-loss?period=this-month"}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Profit This Month</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold tabular-nums">
+              {loading ? "—" : formatPKR(stats?.monthlyNetProfit ?? 0)}
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p className="cursor-help text-xs text-muted-foreground underline decoration-dotted">
+                  After costs & expenses
+                </p>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Revenue − purchase cost − external order cost − all expenses
+              </TooltipContent>
+            </Tooltip>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => window.location.href = "/dashboard/sales?period=this-month"}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sales This Month</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold tabular-nums">
+              {loading ? "—" : stats?.monthlySalesCount ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">Including open orders</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="cursor-pointer transition-shadow hover:shadow-md lg:col-span-1" onClick={() => window.location.href = "/dashboard/inventory?status=AVAILABLE"}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Available Inventory</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold tabular-nums">
               {loading ? "—" : stats?.availableInventory ?? 0}
             </div>
             <p className="text-xs text-muted-foreground">Items in stock</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sales This Month</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "—" : stats?.monthlySalesCount ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Non-cancelled sales</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue This Month</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "—" : formatPKR(stats?.monthlyRevenue ?? 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">Completed sales (PKR)</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Profit This Month</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "—" : formatPKR(stats?.monthlyNetProfit ?? 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Revenue − purchase cost − external cost − expenses
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "—" : formatPKR(stats?.cashInHand ?? 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Cash sales inflows − cash expenses
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Custom Orders</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "—" : stats?.openCustomOrders ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Awaiting completion</p>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <TodaysSilverRateCard />
+        </div>
       </div>
-
-      <TodaysSilverRateCard />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -224,52 +234,108 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <TableSkeleton rows={5} cols={6} />
           ) : !stats?.recentSales.length ? (
-            <p className="text-sm text-muted-foreground">No recent sales</p>
+            <EmptyState
+              icon={ShoppingBag}
+              title="No sales yet"
+              description="Start your first sale to see recent transactions here."
+              action={
+                <Button asChild>
+                  <Link href="/dashboard/sales/new">New Sale</Link>
+                </Button>
+              }
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Items Summary</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.recentSales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell>
-                      {new Date(sale.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {sale.invoiceNumber || "—"}
-                    </TableCell>
-                    <TableCell>{sale.customer?.name || "—"}</TableCell>
-                    <TableCell className="max-w-[320px] truncate text-sm text-muted-foreground">
-                      {sale.itemsSummary || "—"}
-                    </TableCell>
-                    <TableCell>{sale._count?.items ?? 0}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={sale.status} />
-                    </TableCell>
-                    <TableCell>{formatPKR(sale.finalPrice)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/dashboard/sales/${sale.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {stats.recentSales.map((sale) => (
+                    <TableRow
+                      key={sale.id}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        window.location.href = `/dashboard/sales/${sale.id}`;
+                      }}
+                    >
+                      <TableCell className="whitespace-nowrap">
+                        {formatSaleDate(sale.createdAt)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {sale.invoiceNumber ? (
+                          <Link
+                            href={`/dashboard/sales/${sale.id}`}
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {sale.invoiceNumber}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {sale.customer ? (
+                          <Link
+                            href={`/dashboard/customers/${sale.customer.id}`}
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {sale.customer.name}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[280px]">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="block truncate text-sm text-muted-foreground">
+                              {sale.itemsSummary || "—"}
+                              {sale._count?.items
+                                ? ` (${sale._count.items} item${sale._count.items !== 1 ? "s" : ""})`
+                                : ""}
+                            </span>
+                          </TooltipTrigger>
+                          {sale.itemsSummary && (
+                            <TooltipContent className="max-w-sm">
+                              {sale.itemsSummary}
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          label={formatSaleStatus(sale.status)}
+                          variant={saleStatusVariant(sale.status)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatPKR(sale.finalPrice)}
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <IconTooltipButton
+                          label="View sale"
+                          href={`/dashboard/sales/${sale.id}`}
+                          icon={<Eye className="h-4 w-4" />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

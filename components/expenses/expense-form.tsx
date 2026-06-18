@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ExpenseTypeSegment, type ExpenseTypeValue } from "@/components/expenses/expense-type-segment";
+import { useToast } from "@/components/ui/toaster";
 
 type ExpenseType = "BEOPARI" | "KAREGAR" | "SHOP" | "HOME";
 type PaymentMethod = "CASH" | "CARD" | "UPI" | "BANK_TRANSFER" | "CHEQUE";
@@ -37,9 +39,11 @@ export function ExpenseForm({
     amount: number;
     beopariId: string | null;
     karegarId: string | null;
+    purchaseId: string | null;
     allocations: AllocationRow[];
   }>;
 }) {
+  const { toast } = useToast();
   const [expenseType, setExpenseType] = useState<ExpenseType>(
     defaultValues?.expenseType || "SHOP"
   );
@@ -59,6 +63,9 @@ export function ExpenseForm({
   const [beopariOptions, setBeopariOptions] = useState<SimpleOption[]>([]);
   const [karegarOptions, setKaregarOptions] = useState<SimpleOption[]>([]);
   const [targets, setTargets] = useState<SimpleOption[]>([]);
+
+  const [pendingPurchaseId] = useState<string | null>(defaultValues?.purchaseId ?? null);
+  const [purchasePrefilled, setPurchasePrefilled] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +159,17 @@ export function ExpenseForm({
   }, [showBeopari, showKaregar, beopariId, karegarId, expenseId]);
 
   useEffect(() => {
+    if (purchasePrefilled || !pendingPurchaseId || !targets.length) return;
+    const target = targets.find((t) => t.id === pendingPurchaseId);
+    if (!target) return;
+    const match = target.label.match(/Remaining ([\d.]+)/);
+    const remaining = match ? Number(match[1]) : 0;
+    setAllocations([{ targetId: pendingPurchaseId, amount: remaining }]);
+    if (remaining > 0) setAmount(remaining);
+    setPurchasePrefilled(true);
+  }, [pendingPurchaseId, targets, purchasePrefilled]);
+
+  useEffect(() => {
     if (expenseId && defaultValues?.allocations?.length) {
       setAllocations(defaultValues.allocations);
     }
@@ -222,6 +240,10 @@ export function ExpenseForm({
       }
 
       onSaved?.(data.data.id);
+      toast({
+        title: expenseId ? "Expense updated" : "Expense recorded",
+        variant: "success",
+      });
     } catch {
       setError("Failed to save expense");
     } finally {
@@ -239,17 +261,16 @@ export function ExpenseForm({
 
       <div className="space-y-2">
         <Label>Expense type *</Label>
-        <Select value={expenseType} onValueChange={(v) => setExpenseType(v as ExpenseType)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="BEOPARI">Beopari Expense</SelectItem>
-            <SelectItem value="KAREGAR">Karegar Expense</SelectItem>
-            <SelectItem value="SHOP">Shop Expense</SelectItem>
-            <SelectItem value="HOME">Home Expense</SelectItem>
-          </SelectContent>
-        </Select>
+        <ExpenseTypeSegment
+          value={expenseType as ExpenseTypeValue}
+          onChange={(v) => {
+            setExpenseType(v);
+            setBeopariId(null);
+            setKaregarId(null);
+            setAllocations([]);
+          }}
+          disabled={submitting}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

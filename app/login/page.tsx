@@ -1,10 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Eye, EyeOff } from "lucide-react";
 import {
   Form,
   FormControl,
@@ -22,6 +24,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getPostLoginPath } from "@/lib/auth-redirect";
 
 const loginFormSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -37,6 +41,7 @@ function LoginForm() {
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginFormSchema),
@@ -60,10 +65,12 @@ function LoginForm() {
       const result = await res.json();
 
       if (result.success) {
-        router.push(callbackUrl);
+        const role = result.data?.role || "STAFF";
+        const destination = getPostLoginPath(role, callbackUrl);
+        router.push(destination);
         router.refresh();
       } else {
-        setError(result.error || "Invalid email or password");
+        setError("Email or password didn't match. Please try again.");
       }
     } catch {
       setError("An error occurred. Please try again.");
@@ -73,14 +80,28 @@ function LoginForm() {
   };
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Venus Silver Collection</CardTitle>
-        <CardDescription>Sign in to your account</CardDescription>
+    <Card className="w-full max-w-md border-0 shadow-xl">
+      <CardHeader className="space-y-4 text-center">
+        <div className="mx-auto flex justify-center rounded-lg bg-black px-6 py-4">
+          <Image
+            src="/venus_logo.png"
+            alt="Venus Silver Collection"
+            width={200}
+            height={72}
+            className="h-14 w-auto object-contain"
+            priority
+          />
+        </div>
+        <div>
+          <CardTitle className="text-xl">Welcome back</CardTitle>
+          <CardDescription>Sign in to manage your shop</CardDescription>
+        </div>
       </CardHeader>
       <CardContent>
         {error && (
-          <p className="mb-4 text-sm text-destructive">{error}</p>
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         <Form {...form}>
@@ -94,7 +115,7 @@ function LoginForm() {
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="admin@venus.com"
+                      placeholder="you@shop.com"
                       autoComplete="email"
                       {...field}
                     />
@@ -111,19 +132,34 @@ function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Enter your password"
-                      autoComplete="current-password"
-                      {...field}
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        autoComplete="current-password"
+                        className="pr-10"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" variant="bronze" className="w-full" disabled={submitting}>
               {submitting ? "Signing in..." : "Sign In"}
             </Button>
           </form>

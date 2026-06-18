@@ -30,9 +30,9 @@ export function WorkshopStatusBanner({
     <Card
       className={
         isComplete
-          ? "border-green-200 bg-green-50"
+          ? "border-success-border bg-success-muted"
           : isOpenSale
-            ? "border-amber-200 bg-amber-50"
+            ? "border-warning-border bg-warning-muted"
             : "border-muted"
       }
     >
@@ -52,7 +52,7 @@ export function WorkshopStatusBanner({
               )}
             </div>
             {isOpenSale && !isComplete && (
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-[var(--warning)]">
                 Sale cannot be closed until workshop status is Complete.
               </p>
             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +16,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ExpenseTable, type ExpenseRow } from "@/components/expenses/expense-table";
-import { ReportExportLink } from "@/components/reports/report-export-link";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { TableSkeleton } from "@/components/dashboard/table-skeleton";
+import { formatPKR } from "@/lib/currency-utils";
 
 type ExpenseTypeFilter = "" | "BEOPARI" | "KAREGAR" | "SHOP" | "HOME";
+
+const QUICK_ADD = [
+  { type: "SHOP" as const, label: "+ Shop" },
+  { type: "HOME" as const, label: "+ Home" },
+  { type: "BEOPARI" as const, label: "+ Beopari" },
+  { type: "KAREGAR" as const, label: "+ Karegar" },
+];
 
 export default function ExpensesPage() {
   const [rows, setRows] = useState<ExpenseRow[]>([]);
@@ -55,6 +64,11 @@ export default function ExpensesPage() {
     fetchExpenses();
   }, [fetchExpenses]);
 
+  const periodTotal = useMemo(
+    () => rows.reduce((acc, r) => acc + Number(r.amount || 0), 0),
+    [rows]
+  );
+
   const exportHref = (() => {
     const params = new URLSearchParams({ period: "this-month" });
     if (expenseType) params.set("expenseType", expenseType);
@@ -71,20 +85,32 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
-          <p className="text-muted-foreground">Shop cash outflows</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ReportExportLink href={exportHref} label="Export expenses" />
-          <Button asChild>
-            <Link href="/dashboard/expenses/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Expense
+      <PageHeader
+        title="Expenses"
+        description="Shop cash outflows"
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link href={exportHref}>Export report</Link>
+            </Button>
+            <Button asChild variant="bronze">
+              <Link href="/dashboard/expenses/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Expense
+              </Link>
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {QUICK_ADD.map((chip) => (
+          <Button key={chip.type} variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/expenses/new?expenseType=${chip.type}`}>
+              {chip.label}
             </Link>
           </Button>
-        </div>
+        ))}
       </div>
 
       {error && (
@@ -94,8 +120,13 @@ export default function ExpensesPage() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>All expenses</CardTitle>
+          {!loading && rows.length > 0 && (
+            <p className="text-sm font-medium tabular-nums">
+              Total: {formatPKR(periodTotal)}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -127,8 +158,34 @@ export default function ExpensesPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                setDateFrom(start.toISOString().slice(0, 10));
+                setDateTo(now.toISOString().slice(0, 10));
+              }}
+            >
+              This month
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+                setExpenseType("");
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <TableSkeleton rows={6} cols={6} />
           ) : (
             <ExpenseTable rows={rows} />
           )}

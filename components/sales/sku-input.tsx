@@ -30,6 +30,7 @@ export function SkuInput({ onLookup, loading = false, disabled = false }: SkuInp
           placeholder="Enter SKU or scan barcode..."
           value={value}
           disabled={disabled || loading}
+          autoFocus
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

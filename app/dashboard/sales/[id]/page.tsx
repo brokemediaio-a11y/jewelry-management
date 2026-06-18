@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Download, Printer, XCircle } from "lucide-react";
+import { Download, Printer, XCircle } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -26,7 +25,15 @@ import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
 import { formatItemQuality, formatStoneSnapshot } from "@/lib/stone-utils";
 import { CloseSaleDialog } from "@/components/sales/close-sale-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { WorkshopStatusBanner } from "@/components/sales/workshop-status-banner";
+import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  formatPaymentMethod,
+  formatSaleStatus,
+  saleStatusVariant,
+} from "@/lib/display-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
 import "./print.css";
 
 interface SaleItem {
@@ -104,6 +111,8 @@ export default function SaleDetailPage() {
   const [closing, setClosing] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const fetchSale = useCallback(async () => {
     setLoading(true);
@@ -172,18 +181,20 @@ export default function SaleDetailPage() {
   };
 
   const handleCancel = async () => {
-    if (!confirm("Cancel this sale and return items to inventory?")) return;
-
     setCancelling(true);
+    setCancelError(null);
     try {
       const res = await fetch(`/api/sales/${id}`, { method: "DELETE" });
       const data = await res.json();
 
       if (data.success) {
+        setCancelOpen(false);
         fetchSale();
       } else {
-        alert(data.error || "Failed to cancel sale");
+        setCancelError(data.error || "Failed to cancel sale");
       }
+    } catch {
+      setCancelError("Failed to cancel sale");
     } finally {
       setCancelling(false);
     }
@@ -215,51 +226,49 @@ export default function SaleDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="no-print flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/sales">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {sale.invoiceNumber || "Invoice"}
-            </h1>
-            <p className="text-muted-foreground">Sale invoice and item breakdown</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handlePrint}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print
-          </Button>
-          <Button variant="outline" onClick={handleDownloadPdf}>
-            <Download className="mr-2 h-4 w-4" />
-            PDF
-          </Button>
-          {isOpenCustomOrder && (
-            <Button
-              onClick={() => setCloseOpen(true)}
-              disabled={Boolean(workshopIncomplete)}
-              title={workshopIncomplete ? "Workshop must be COMPLETE to close sale" : undefined}
-            >
-              Close Sale
+      <PageHeader
+        title={sale.invoiceNumber || "Invoice"}
+        description="Sale invoice and item breakdown"
+        breadcrumbs={[
+          { label: "Sales", href: "/dashboard/sales" },
+          { label: sale.invoiceNumber || "Detail" },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" onClick={handlePrint}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print
             </Button>
-          )}
-          {sale.status !== "CANCELLED" && (
-            <Button
-              variant="destructive"
-              onClick={handleCancel}
-              disabled={cancelling}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              {cancelling ? "Cancelling..." : "Cancel Sale"}
+            <Button variant="outline" onClick={handleDownloadPdf}>
+              <Download className="mr-2 h-4 w-4" />
+              PDF
             </Button>
-          )}
-        </div>
-      </div>
+            {isOpenCustomOrder && (
+              <Button
+                onClick={() => setCloseOpen(true)}
+                disabled={Boolean(workshopIncomplete)}
+                title={workshopIncomplete ? "Karegar must mark workshop complete before closing" : undefined}
+              >
+                Close Sale
+              </Button>
+            )}
+            {sale.status !== "CANCELLED" && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setCancelError(null);
+                  setCancelOpen(true);
+                }}
+                disabled={cancelling}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Cancel Sale
+              </Button>
+            )}
+          </>
+        }
+        className="no-print"
+      />
 
       {sale.saleType === "CUSTOM_ORDER" && sale.workshopOrder && (
         <WorkshopStatusBanner
@@ -270,7 +279,7 @@ export default function SaleDetailPage() {
 
       <div ref={invoiceRef} className="invoice-content space-y-6 bg-white p-6">
         {isPartialPayment && (
-          <div className="rounded border-2 border-amber-400 bg-amber-50 p-3 text-center text-sm font-semibold text-amber-800">
+          <div className="rounded border-2 border-warning-border bg-warning-muted p-3 text-center text-sm font-semibold text-[var(--warning)]">
             PARTIAL PAYMENT — Custom Order
           </div>
         )}
@@ -290,9 +299,11 @@ export default function SaleDetailPage() {
           <div className="text-right text-sm">
             <p className="font-mono font-semibold">{sale.invoiceNumber}</p>
             <p>{new Date(sale.createdAt).toLocaleString()}</p>
-            <Badge variant="outline" className="mt-1">
-              {sale.status}
-            </Badge>
+            <StatusBadge
+              label={formatSaleStatus(sale.status)}
+              variant={saleStatusVariant(sale.status)}
+              className="mt-1"
+            />
           </div>
         </div>
 
@@ -398,7 +409,7 @@ export default function SaleDetailPage() {
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Payment</span>
-              <span>{sale.paymentMethod.replace("_", " ")}</span>
+              <span>{formatPaymentMethod(sale.paymentMethod)}</span>
             </div>
           </div>
         </div>
@@ -441,6 +452,24 @@ export default function SaleDetailPage() {
           Served by {sale.user.name}
         </p>
       </div>
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="Cancel this sale?"
+        description="This will cancel the sale and return inventory items to available stock. This action cannot be undone."
+        confirmLabel="Cancel sale"
+        destructive
+        loading={cancelling}
+        onConfirm={handleCancel}
+        onCancel={() => {
+          setCancelOpen(false);
+          setCancelError(null);
+        }}
+      />
+
+      {cancelError && (
+        <p className="no-print text-sm text-destructive">{cancelError}</p>
+      )}
 
       <CloseSaleDialog
         open={closeOpen}

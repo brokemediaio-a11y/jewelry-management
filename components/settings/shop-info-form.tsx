@@ -141,8 +141,8 @@ export function SettingsShopInfo() {
         )}
 
         {success && (
-          <Alert className="mb-4 border-green-500 bg-green-50">
-            <AlertDescription className="text-green-800">
+          <Alert className="mb-4 border-success-border bg-success-muted">
+            <AlertDescription className="text-[var(--success)]">
               Shop information updated successfully!
             </AlertDescription>
           </Alert>

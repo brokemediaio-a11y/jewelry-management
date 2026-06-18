@@ -37,7 +37,7 @@ export default function BeopariListPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Beopari</h1>
-          <p className="text-muted-foreground">Supplier ledger</p>
+          <p className="text-muted-foreground">Beopari ledger — vendor purchases and payments</p>
         </div>
         <Button asChild>
           <Link href="/dashboard/beopari/new">

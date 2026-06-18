@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Download, FileBarChart, FileSpreadsheet, FileText } from "lucide-react";
+import { ArrowLeft, FileBarChart } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
   queryToFilters,
   type ReportFilterValues,
 } from "@/components/reports/report-filters";
+import { ReportExportMenu } from "@/components/reports/report-export-menu";
+import { useTrackRecentReport } from "@/components/reports/use-recent-reports";
 import { ReportKpiStrip } from "@/components/reports/report-kpi-strip";
 import { ReportPreviewTable } from "@/components/reports/report-preview-table";
 import { getReportDefinition } from "@/lib/report-registry";
@@ -22,6 +24,8 @@ export function ReportViewer({ reportId }: { reportId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const def = getReportDefinition(reportId);
+
+  useTrackRecentReport(reportId);
 
   const [filters, setFilters] = useState<ReportFilterValues>(() =>
     queryToFilters(searchParams)
@@ -55,20 +59,15 @@ export function ReportViewer({ reportId }: { reportId: string }) {
     fetchReport();
   }, [fetchReport]);
 
-  const applyFilters = () => {
-    router.push(`/dashboard/reports/${reportId}?${filtersToQuery(filters)}`);
+  const applyFilters = (next: ReportFilterValues) => {
+    router.push(`/dashboard/reports/${reportId}?${filtersToQuery(next)}`);
   };
 
-  const downloadCsv = () => {
-    window.location.href = `/api/reports/${reportId}/export?${queryString}&format=csv`;
-  };
-
-  const downloadPdf = () => {
-    window.location.href = `/api/reports/${reportId}/export?${queryString}&format=pdf`;
-  };
-
-  const downloadExcel = () => {
-    window.location.href = `/api/reports/${reportId}/export?${queryString}&format=xlsx`;
+  const handleFilterChange = (next: ReportFilterValues) => {
+    setFilters(next);
+    if (next.period !== "custom") {
+      applyFilters(next);
+    }
   };
 
   if (!def) {
@@ -102,7 +101,7 @@ export function ReportViewer({ reportId }: { reportId: string }) {
               </p>
             )}
             {filters.beopariId && (
-              <p className="text-sm text-muted-foreground">Filtered by supplier</p>
+              <p className="text-sm text-muted-foreground">Filtered by beopari</p>
             )}
             {filters.karegarId && (
               <p className="text-sm text-muted-foreground">Filtered by karegar</p>
@@ -120,24 +119,13 @@ export function ReportViewer({ reportId }: { reportId: string }) {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={downloadCsv} disabled={loading || !report}>
-            <Download className="mr-2 h-4 w-4" />
-            CSV
-          </Button>
-          {def.supportsPdf && (
-            <Button variant="outline" onClick={downloadPdf} disabled={loading || !report}>
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
-            </Button>
-          )}
-          {def.supportsExcel && (
-            <Button onClick={downloadExcel} disabled={loading || !report}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel
-            </Button>
-          )}
-        </div>
+        <ReportExportMenu
+          queryString={queryString}
+          reportId={reportId}
+          supportsPdf={def.supportsPdf}
+          supportsExcel={def.supportsExcel}
+          disabled={loading || !report}
+        />
       </div>
 
       <Card>
@@ -148,8 +136,8 @@ export function ReportViewer({ reportId }: { reportId: string }) {
           <ReportFilters
             values={filters}
             supportsDateRange={def.supportsDateRange}
-            onChange={setFilters}
-            onApply={applyFilters}
+            onChange={handleFilterChange}
+            onApply={() => applyFilters(filters)}
           />
         </CardContent>
       </Card>

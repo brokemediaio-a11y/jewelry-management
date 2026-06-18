@@ -26,6 +26,7 @@ function NewExpenseContent() {
         expenseType,
         beopariId: searchParams.get("beopariId"),
         karegarId: searchParams.get("karegarId"),
+        purchaseId: searchParams.get("purchaseId"),
       }}
       onSaved={(id) => router.push(`/dashboard/expenses/${id}`)}
     />

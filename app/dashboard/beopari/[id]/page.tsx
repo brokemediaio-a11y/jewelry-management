@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPKR } from "@/lib/currency-utils";
-import { ReportExportLink } from "@/components/reports/report-export-link";
+import { formatPaymentMethod } from "@/lib/display-labels";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 type PurchaseRow = {
   id: string;
@@ -48,6 +49,27 @@ type BeopariDetail = {
   purchases: PurchaseRow[];
   paymentHistory: PaymentRow[];
 };
+
+function KpiCard({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <Card className={highlight ? "border-warning-border bg-warning-muted" : undefined}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold tabular-nums">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function BeopariDetailPage() {
   const params = useParams();
@@ -90,31 +112,47 @@ export default function BeopariDetailPage() {
     );
   }
 
+  const hasRemaining = data.remainingAmount > 0.009;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{data.name}</h1>
-          <p className="text-muted-foreground">
-            Total {formatPKR(data.totalAmount)} · Paid {formatPKR(data.paidAmount)} · Remaining{" "}
-            {formatPKR(data.remainingAmount)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ReportExportLink
-            href={`/dashboard/reports/supplier-statement?period=this-month&beopariId=${id}`}
-            label="Supplier statement"
-          />
-          <Button asChild variant="outline">
-            <Link href={recordPaymentHref}>Record Payment</Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/dashboard/beopari/purchases/new?beopariId=${id}`}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Purchase
-            </Link>
-          </Button>
-        </div>
+      <PageHeader
+        title={data.name}
+        description={`Business since ${new Date(data.businessStartDate).toLocaleDateString()}`}
+        breadcrumbs={[
+          { label: "Beopari", href: "/dashboard/beopari" },
+          { label: data.name },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link href={`/dashboard/reports/supplier-statement?period=this-month&beopariId=${id}`}>
+                Beopari statement
+              </Link>
+            </Button>
+            {hasRemaining && (
+              <Button asChild variant="bronze">
+                <Link href={recordPaymentHref}>Record Payment</Link>
+              </Button>
+            )}
+            <Button asChild variant={hasRemaining ? "outline" : "default"}>
+              <Link href={`/dashboard/beopari/purchases/new?beopariId=${id}`}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Purchase
+              </Link>
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <KpiCard label="Total purchases" value={formatPKR(data.totalAmount)} />
+        <KpiCard label="Paid" value={formatPKR(data.paidAmount)} />
+        <KpiCard
+          label="Remaining"
+          value={formatPKR(data.remainingAmount)}
+          highlight={hasRemaining}
+        />
       </div>
 
       <Card>
@@ -125,34 +163,54 @@ export default function BeopariDetailPage() {
           {!purchases.length ? (
             <p className="text-sm text-muted-foreground">No purchases yet.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Weight</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Cost/g</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Remaining</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchases.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{new Date(p.purchaseDate).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{p.categoryName}</TableCell>
-                    <TableCell className="text-right">{p.totalWeight.toFixed(3)} g</TableCell>
-                    <TableCell className="text-right">{p.quantity}</TableCell>
-                    <TableCell className="text-right">{formatPKR(p.costPerGram)}</TableCell>
-                    <TableCell className="text-right">{formatPKR(p.totalCost)}</TableCell>
-                    <TableCell className="text-right">{formatPKR(p.paidAmount)}</TableCell>
-                    <TableCell className="text-right">{formatPKR(p.remainingAmount)}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Weight</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Cost/g</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right">Remaining</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {purchases.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        {new Date(p.purchaseDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="font-medium">{p.categoryName}</TableCell>
+                      <TableCell className="text-right">{p.totalWeight.toFixed(3)} g</TableCell>
+                      <TableCell className="text-right">{p.quantity}</TableCell>
+                      <TableCell className="text-right">{formatPKR(p.costPerGram)}</TableCell>
+                      <TableCell className="text-right">{formatPKR(p.totalCost)}</TableCell>
+                      <TableCell className="text-right">{formatPKR(p.paidAmount)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatPKR(p.remainingAmount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p.remainingAmount > 0.009 ? (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link
+                              href={`/dashboard/expenses/new?expenseType=BEOPARI&beopariId=${id}&purchaseId=${p.id}`}
+                            >
+                              Pay
+                            </Link>
+                          </Button>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -179,7 +237,7 @@ export default function BeopariDetailPage() {
                   <TableRow key={e.id}>
                     <TableCell>{new Date(e.expenseDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right font-medium">{formatPKR(e.amount)}</TableCell>
-                    <TableCell>{e.paymentMethod.replace("_", " ")}</TableCell>
+                    <TableCell>{formatPaymentMethod(e.paymentMethod)}</TableCell>
                     <TableCell className="max-w-[280px] truncate text-muted-foreground">
                       {e.description || "—"}
                     </TableCell>

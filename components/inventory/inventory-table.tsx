@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { Eye, Printer, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Eye, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -14,7 +13,13 @@ import {
 } from "@/components/ui/table";
 import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
-import { formatItemQuality } from "@/lib/stone-utils";
+import {
+  formatInventoryStatus,
+  formatItemQuality,
+  inventoryStatusVariant,
+} from "@/lib/display-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { IconTooltipButton } from "@/components/ui/icon-tooltip-button";
 
 export interface InventoryItemRow {
   id: string;
@@ -33,24 +38,15 @@ export interface InventoryItemRow {
 
 interface InventoryTableProps {
   items: InventoryItemRow[];
+  showExtended?: boolean;
   onDelete?: (item: InventoryItemRow) => void;
 }
 
-function StatusBadge({ status }: { status: InventoryItemRow["status"] }) {
-  const styles: Record<InventoryItemRow["status"], string> = {
-    AVAILABLE: "bg-green-100 text-green-800 border-green-200",
-    SOLD: "bg-muted text-muted-foreground",
-    RESERVED: "bg-amber-100 text-amber-800 border-amber-200",
-  };
-
-  return (
-    <Badge variant="outline" className={styles[status]}>
-      {status}
-    </Badge>
-  );
-}
-
-export function InventoryTable({ items, onDelete }: InventoryTableProps) {
+export function InventoryTable({
+  items,
+  showExtended = false,
+  onDelete,
+}: InventoryTableProps) {
   if (items.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -60,81 +56,119 @@ export function InventoryTable({ items, onDelete }: InventoryTableProps) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-16">Image</TableHead>
-          <TableHead>SKU</TableHead>
-          <TableHead>Barcode</TableHead>
-          <TableHead>Category</TableHead>
-          <TableHead>Quality</TableHead>
-          <TableHead>Stone</TableHead>
-          <TableHead>Weight</TableHead>
-          <TableHead>Purchase/Piece</TableHead>
-          <TableHead>Silver Rate</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.map((item) => (
-          <TableRow key={item.id}>
-            <TableCell>
-              {item.imageData ? (
-                <img
-                  src={getImageSrc(item.imageData)}
-                  alt={item.sku}
-                  className="h-10 w-10 rounded object-cover"
-                />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                  —
-                </div>
-              )}
-            </TableCell>
-            <TableCell className="font-mono text-sm">{item.sku}</TableCell>
-            <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
-            <TableCell>{item.category?.name || "—"}</TableCell>
-            <TableCell>
-              {item.itemQuality ? formatItemQuality(item.itemQuality) : "—"}
-            </TableCell>
-            <TableCell className="max-w-[180px] truncate text-sm">
-              {item.stoneSummary || "—"}
-            </TableCell>
-            <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
-            <TableCell>{formatPKR(item.purchasePricePerPiece)}</TableCell>
-            <TableCell>{formatPKR(item.silverRateAtPurchase)}/g</TableCell>
-            <TableCell>
-              <StatusBadge status={item.status} />
-            </TableCell>
-            <TableCell>{new Date(item.createdAt).toLocaleDateString()}</TableCell>
-            <TableCell className="text-right">
-              <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/dashboard/inventory/${item.id}`}>
-                    <Eye className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href={`/dashboard/inventory/${item.id}/barcode`}>
-                    <Printer className="h-4 w-4" />
-                  </Link>
-                </Button>
-                {item.status === "AVAILABLE" && onDelete && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(item)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </TableCell>
+    <div className="overflow-x-auto rounded-md border shadow-sm">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur w-16">Image</TableHead>
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">SKU</TableHead>
+            {showExtended && (
+              <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Barcode</TableHead>
+            )}
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Category</TableHead>
+            {showExtended && (
+              <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Quality</TableHead>
+            )}
+            {showExtended && (
+              <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Stone</TableHead>
+            )}
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Weight</TableHead>
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Purchase/Piece</TableHead>
+            {showExtended && (
+              <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Silver Rate</TableHead>
+            )}
+            {showExtended && (
+              <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Date</TableHead>
+            )}
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur">Status</TableHead>
+            <TableHead className="sticky top-0 bg-muted/80 backdrop-blur text-right">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {items.map((item) => (
+            <TableRow
+              key={item.id}
+              className="cursor-pointer"
+              onClick={() => {
+                window.location.href = `/dashboard/inventory/${item.id}`;
+              }}
+            >
+              <TableCell>
+                {item.imageData ? (
+                  <img
+                    src={getImageSrc(item.imageData)}
+                    alt={item.sku}
+                    className="h-10 w-10 rounded object-cover"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
+                    —
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="font-mono text-sm">{item.sku}</TableCell>
+              {showExtended && (
+                <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
+              )}
+              <TableCell>{item.category?.name || "—"}</TableCell>
+              {showExtended && (
+                <TableCell>
+                  {item.itemQuality ? formatItemQuality(item.itemQuality) : "—"}
+                </TableCell>
+              )}
+              {showExtended && (
+                <TableCell className="max-w-[160px] truncate text-sm">
+                  {item.stoneSummary || "—"}
+                </TableCell>
+              )}
+              <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
+              <TableCell className="tabular-nums">{formatPKR(item.purchasePricePerPiece)}</TableCell>
+              {showExtended && (
+                <TableCell className="tabular-nums">{formatPKR(item.silverRateAtPurchase)}/g</TableCell>
+              )}
+              {showExtended && (
+                <TableCell className="whitespace-nowrap text-sm">
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </TableCell>
+              )}
+              <TableCell>
+                <StatusBadge
+                  label={formatInventoryStatus(item.status)}
+                  variant={inventoryStatusVariant(item.status)}
+                />
+              </TableCell>
+              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-end gap-1">
+                  {item.status === "AVAILABLE" && (
+                    <IconTooltipButton
+                      label="Sell this item"
+                      href={`/dashboard/sales/new?sku=${encodeURIComponent(item.sku)}`}
+                      icon={<ShoppingCart className="h-4 w-4" />}
+                    />
+                  )}
+                  <IconTooltipButton
+                    label="View item"
+                    href={`/dashboard/inventory/${item.id}`}
+                    icon={<Eye className="h-4 w-4" />}
+                  />
+                  <IconTooltipButton
+                    label="Print barcode"
+                    href={`/dashboard/inventory/${item.id}/barcode`}
+                    icon={<Printer className="h-4 w-4" />}
+                  />
+                  {item.status === "AVAILABLE" && onDelete && (
+                    <IconTooltipButton
+                      label="Delete item"
+                      icon={<Trash2 className="h-4 w-4" />}
+                      onClick={() => onDelete(item)}
+                    />
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

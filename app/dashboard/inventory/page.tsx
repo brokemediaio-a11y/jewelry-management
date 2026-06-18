@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Printer, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Printer, Search, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,11 +20,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
   InventoryTable,
   InventoryItemRow,
 } from "@/components/inventory/inventory-table";
 import { DeleteInventoryDialog } from "@/components/inventory/delete-inventory-dialog";
-import { ReportExportLink } from "@/components/reports/report-export-link";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { TableSkeleton } from "@/components/dashboard/table-skeleton";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { Package } from "lucide-react";
+import {
+  formatInventoryStatus,
+} from "@/lib/display-labels";
 
 interface Category {
   id: string;
@@ -38,6 +51,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showExtended, setShowExtended] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItemRow | null>(null);
@@ -110,53 +124,76 @@ export default function InventoryPage() {
     }
   };
 
+  const agingHref =
+    categoryFilter !== "all"
+      ? `/dashboard/reports/aging-stock?period=this-month&categoryId=${categoryFilter}`
+      : "/dashboard/reports/aging-stock?period=this-month";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-          <p className="text-muted-foreground">
-            Manage jewelry stock with images, SKUs, and barcodes
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ReportExportLink
-            href="/dashboard/reports/stock-on-hand?period=this-month"
-            label="Stock report"
-          />
-          <ReportExportLink
-            href="/dashboard/reports/inventory-valuation?period=this-month"
-            label="Valuation"
-          />
-          <ReportExportLink
-            href={
-              categoryFilter !== "all"
-                ? `/dashboard/reports/aging-stock?period=this-month&categoryId=${categoryFilter}`
-                : "/dashboard/reports/aging-stock?period=this-month"
-            }
-            label="Aging stock"
-          />
-          <Button variant="outline" asChild>
-            <Link href="/dashboard/inventory/print-barcodes?status=AVAILABLE">
-              <Printer className="mr-2 h-4 w-4" />
-              Print All Barcodes
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/dashboard/inventory/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Inventory
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Inventory"
+        description="Manage jewelry stock with images, SKUs, and barcodes"
+        actions={
+          <>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px]">
+                <SheetHeader>
+                  <SheetTitle>Inventory actions</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 flex flex-col gap-2">
+                  <Button variant="outline" asChild className="justify-start">
+                    <Link href="/dashboard/reports/stock-on-hand?period=this-month">
+                      Stock on hand report
+                    </Link>
+                  </Button>
+                  <Button variant="outline" asChild className="justify-start">
+                    <Link href="/dashboard/reports/inventory-valuation?period=this-month">
+                      Inventory valuation
+                    </Link>
+                  </Button>
+                  <Button variant="outline" asChild className="justify-start">
+                    <Link href={agingHref}>Aging stock report</Link>
+                  </Button>
+                  <Button variant="outline" asChild className="justify-start">
+                    <Link href="/dashboard/inventory/print-barcodes?status=AVAILABLE">
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print all barcodes
+                    </Link>
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Button asChild variant="bronze">
+              <Link href="/dashboard/inventory/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Inventory
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Inventory List</CardTitle>
-          <CardDescription>
-            Filter by category or status, search by SKU or barcode
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Inventory List</CardTitle>
+            <CardDescription>
+              Filter by category or status, search by SKU or barcode
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExtended((v) => !v)}
+          >
+            {showExtended ? "Show less" : "Show more columns"}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -188,18 +225,30 @@ export default function InventoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="AVAILABLE">Available</SelectItem>
-                <SelectItem value="SOLD">Sold</SelectItem>
-                <SelectItem value="RESERVED">Reserved</SelectItem>
+                <SelectItem value="AVAILABLE">{formatInventoryStatus("AVAILABLE")}</SelectItem>
+                <SelectItem value="SOLD">{formatInventoryStatus("SOLD")}</SelectItem>
+                <SelectItem value="RESERVED">{formatInventoryStatus("RESERVED")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <TableSkeleton rows={6} cols={7} />
+          ) : items.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="No inventory items"
+              description="Add your first item or adjust your filters."
+              action={
+                <Button asChild>
+                  <Link href="/dashboard/inventory/new">Add Inventory</Link>
+                </Button>
+              }
+            />
           ) : (
             <InventoryTable
               items={items}
+              showExtended={showExtended}
               onDelete={(item) => {
                 setDeleteError(null);
                 setDeleteTarget(item);

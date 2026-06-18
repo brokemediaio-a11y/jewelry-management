@@ -120,7 +120,7 @@ export default function NewInventoryPage() {
             <>
               {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
               {successMessage && (
-                <p className="mb-4 text-sm text-green-600">{successMessage}</p>
+                <p className="mb-4 text-sm text-[var(--success)]">{successMessage}</p>
               )}
               <InventoryForm
                 categories={categories}

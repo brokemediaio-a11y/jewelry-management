@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -27,6 +27,7 @@ import { useSaleSessionStore } from "@/stores/sale-session-store";
 import { useEffectiveSilverRate, useSilverRateStore } from "@/stores/silver-rate-store";
 import { SaleModeSwitch, type SaleMode } from "@/components/sales/sale-mode-switch";
 import { ExternalOrderForm } from "@/components/sales/external-order-form";
+import { MobileCheckoutSheet } from "@/components/sales/mobile-checkout-sheet";
 
 function NewSalePageInner() {
   const router = useRouter();
@@ -34,6 +35,8 @@ function NewSalePageInner() {
   const mode = (searchParams.get("mode") === "external"
     ? "external"
     : "inventory") as SaleMode;
+  const skuParam = searchParams.get("sku");
+  const skuHandled = useRef(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -138,6 +141,12 @@ function NewSalePageInner() {
     [addToCart, pricingConfig]
   );
 
+  useEffect(() => {
+    if (mode !== "inventory" || !skuParam || skuHandled.current) return;
+    skuHandled.current = true;
+    handleLookup(skuParam, "sku");
+  }, [mode, skuParam, handleLookup]);
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
@@ -217,9 +226,16 @@ function NewSalePageInner() {
         }}
       />
 
+      <p className="text-sm text-muted-foreground">
+        {mode === "inventory"
+          ? "Scan or enter SKU for items already in stock."
+          : "Custom order from customer sample — no SKU yet."}
+      </p>
+
       {mode === "external" ? (
         <ExternalOrderForm />
       ) : (
+      <>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -260,7 +276,7 @@ function NewSalePageInner() {
           />
         </div>
 
-        <div>
+        <div className="hidden lg:sticky lg:top-20 lg:block lg:self-start">
           <PricingPanel
             customerId={customerId}
             saleType={saleType}
@@ -282,6 +298,27 @@ function NewSalePageInner() {
           />
         </div>
       </div>
+
+      <MobileCheckoutSheet
+        customerId={customerId}
+        saleType={saleType}
+        paymentMethod={paymentMethod}
+        notes={notes}
+        advancePaid={advancePaid}
+        pickupDate={pickupDate}
+        finalTotal={getFinalTotal()}
+        itemCount={cartItems.length}
+        submitting={submitting}
+        error={submitError}
+        onCustomerChange={setCustomerId}
+        onSaleTypeChange={setSaleType}
+        onPaymentMethodChange={setPaymentMethod}
+        onNotesChange={setNotes}
+        onAdvancePaidChange={setAdvancePaid}
+        onPickupDateChange={setPickupDate}
+        onSubmit={handleSubmit}
+      />
+      </>
       )}
     </div>
   );

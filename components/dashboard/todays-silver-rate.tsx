@@ -129,7 +129,7 @@ export function TodaysSilverRateCard() {
                 <p>Currency: {rate.currency}</p>
                 <p>Updated: {new Date(rate.fetchedAt).toLocaleString()}</p>
                 {rate.isSessionOverride && rate.lockedUntil ? (
-                  <p className="font-medium text-amber-700">
+                  <p className="font-medium text-brand-bronze">
                     Manually set — locked until {new Date(rate.lockedUntil).toLocaleString()}
                   </p>
                 ) : (

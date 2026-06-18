@@ -33,7 +33,7 @@ export function SaleTypeSelector({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="PURCHASE">Purchase (immediate)</SelectItem>
+          <SelectItem value="PURCHASE">From Stock (immediate sale)</SelectItem>
           <SelectItem value="CUSTOM_ORDER">Custom Order</SelectItem>
         </SelectContent>
       </Select>

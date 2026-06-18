@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Printer } from "lucide-react";
+import { Printer, ShoppingCart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,9 +46,9 @@ interface InventoryDetailProps {
 
 function StatusBadge({ status }: { status: InventoryDetailData["status"] }) {
   const styles: Record<InventoryDetailData["status"], string> = {
-    AVAILABLE: "bg-green-100 text-green-800 border-green-200",
+    AVAILABLE: "bg-success-muted text-[var(--success)] border-success-border",
     SOLD: "bg-muted text-muted-foreground",
-    RESERVED: "bg-amber-100 text-amber-800 border-amber-200",
+    RESERVED: "bg-warning-muted text-[var(--warning)] border-warning-border",
   };
 
   return (
@@ -161,10 +161,23 @@ export function InventoryDetail({ item, onDelete, deleting = false }: InventoryD
           </Card>
         )}
 
-        {item.status === "AVAILABLE" && onDelete && (
-          <Button variant="destructive" onClick={onDelete} disabled={deleting}>
-            {deleting ? "Deleting..." : "Delete Item"}
-          </Button>
+        {item.status === "AVAILABLE" && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="bronze"
+            >
+              <Link href={`/dashboard/sales/new?sku=${encodeURIComponent(item.sku)}`}>
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Sell this item
+              </Link>
+            </Button>
+            {onDelete && (
+              <Button variant="destructive" onClick={onDelete} disabled={deleting}>
+                {deleting ? "Deleting..." : "Delete Item"}
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

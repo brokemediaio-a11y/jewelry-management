@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
           saleType: o.sale.saleType,
           status: o.sale.status,
           createdAt: o.sale.createdAt,
+          pickupDate: o.sale.pickupDate,
           customer: o.sale.customer,
           itemsSummary: formatSaleItemsSummary({
             source: o.sale.source,

@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,8 +10,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { formatPKR } from "@/lib/currency-utils";
+import {
+  formatSaleSource,
+  formatSaleStatus,
+  formatSaleType,
+  saleStatusVariant,
+} from "@/lib/display-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { IconTooltipButton } from "@/components/ui/icon-tooltip-button";
 
 export type CustomerPurchaseRow = {
   id: string;
@@ -31,6 +37,8 @@ export function CustomerPurchaseHistory({
 }: {
   purchases: CustomerPurchaseRow[];
 }) {
+  const router = useRouter();
+
   if (!purchases.length) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -40,52 +48,66 @@ export function CustomerPurchaseHistory({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Date</TableHead>
-          <TableHead>Invoice</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Source</TableHead>
-          <TableHead>Items / Description</TableHead>
-          <TableHead className="text-right">Total</TableHead>
-          <TableHead className="text-right">Paid</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right">View</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {purchases.map((sale) => (
-          <TableRow key={sale.id}>
-            <TableCell>{new Date(sale.createdAt).toLocaleDateString()}</TableCell>
-            <TableCell className="font-mono text-sm">
-              {sale.invoiceNumber || "—"}
-            </TableCell>
-            <TableCell>{sale.saleType.replace("_", " ")}</TableCell>
-            <TableCell>{sale.source}</TableCell>
-            <TableCell className="max-w-[420px] truncate text-sm text-muted-foreground">
-              {sale.itemsSummary || "—"}
-            </TableCell>
-            <TableCell className="text-right">{formatPKR(sale.finalPrice)}</TableCell>
-            <TableCell className="text-right">
-              {sale.saleType === "CUSTOM_ORDER" && sale.status === "OPEN"
-                ? formatPKR(sale.advancePaid || 0)
-                : formatPKR(sale.finalPrice)}
-            </TableCell>
-            <TableCell>
-              <Badge variant="outline">{sale.status}</Badge>
-            </TableCell>
-            <TableCell className="text-right">
-              <Button variant="ghost" size="icon" asChild>
-                <Link href={`/dashboard/sales/${sale.id}`}>
-                  <Eye className="h-4 w-4" />
-                </Link>
-              </Button>
-            </TableCell>
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Invoice</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Source</TableHead>
+            <TableHead>Items / Description</TableHead>
+            <TableHead className="text-right">Total</TableHead>
+            <TableHead className="text-right">Paid</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">View</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {purchases.map((sale) => (
+            <TableRow
+              key={sale.id}
+              className="cursor-pointer"
+              onClick={() => router.push(`/dashboard/sales/${sale.id}`)}
+            >
+              <TableCell className="whitespace-nowrap">
+                {new Date(sale.createdAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </TableCell>
+              <TableCell className="font-mono text-sm">
+                {sale.invoiceNumber || "—"}
+              </TableCell>
+              <TableCell>{formatSaleType(sale.saleType)}</TableCell>
+              <TableCell>{formatSaleSource(sale.source)}</TableCell>
+              <TableCell className="max-w-[420px] truncate text-sm text-muted-foreground">
+                {sale.itemsSummary || "—"}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{formatPKR(sale.finalPrice)}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {sale.saleType === "CUSTOM_ORDER" && sale.status === "OPEN"
+                  ? formatPKR(sale.advancePaid || 0)
+                  : formatPKR(sale.finalPrice)}
+              </TableCell>
+              <TableCell>
+                <StatusBadge
+                  label={formatSaleStatus(sale.status)}
+                  variant={saleStatusVariant(sale.status)}
+                />
+              </TableCell>
+              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                <IconTooltipButton
+                  label="View sale"
+                  href={`/dashboard/sales/${sale.id}`}
+                  icon={<Eye className="h-4 w-4" />}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
-

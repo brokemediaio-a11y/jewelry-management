@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatPKR } from "@/lib/currency-utils";
 import { ExpenseForm } from "@/components/expenses/expense-form";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { formatExpenseType, formatPaymentMethod } from "@/lib/display-labels";
 
 type ExpenseDetail = {
   id: string;
@@ -33,6 +36,8 @@ export default function ExpenseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchExpense = useCallback(async () => {
     setLoading(true);
@@ -54,13 +59,15 @@ export default function ExpenseDetailPage() {
   }, [fetchExpense]);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this expense?")) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) router.push("/dashboard/expenses");
-      else alert(data.error || "Failed to delete expense");
+      else setDeleteError(data.error || "Failed to delete expense");
+    } catch {
+      setDeleteError("Failed to delete expense");
     } finally {
       setDeleting(false);
     }
@@ -96,23 +103,33 @@ export default function ExpenseDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/expenses">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setEditing((v) => !v)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            {editing ? "Cancel edit" : "Edit"}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={`Expense — ${formatPKR(expense.amount)}`}
+        description={formatExpenseType(expense.expenseType)}
+        breadcrumbs={[
+          { label: "Expenses", href: "/dashboard/expenses" },
+          { label: "Detail" },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setEditing((v) => !v)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              {editing ? "Cancel edit" : "Edit"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+              disabled={deleting}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </>
+        }
+      />
 
       {editing ? (
         <Card>
@@ -147,7 +164,7 @@ export default function ExpenseDetailPage() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Type</span>
-              <span className="font-medium">{expense.expenseType}</span>
+              <span className="font-medium">{formatExpenseType(expense.expenseType)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Date</span>
@@ -161,7 +178,7 @@ export default function ExpenseDetailPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Payment method</span>
-              <span className="font-medium">{expense.paymentMethod.replace("_", " ")}</span>
+              <span className="font-medium">{formatPaymentMethod(expense.paymentMethod)}</span>
             </div>
             {expense.beopari?.name && (
               <div className="flex justify-between">
@@ -184,6 +201,22 @@ export default function ExpenseDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete this expense?"
+        description="This will permanently remove the expense record and reverse its effect on cash in hand and ledgers."
+        confirmLabel="Delete expense"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
+      />
+
+      {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
     </div>
   );
 }

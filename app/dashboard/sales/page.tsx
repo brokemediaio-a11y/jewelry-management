@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -26,9 +26,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatPKR } from "@/lib/currency-utils";
-import { ReportExportLink } from "@/components/reports/report-export-link";
+import {
+  formatSaleStatus,
+  formatSaleType,
+  saleStatusVariant,
+} from "@/lib/display-labels";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { IconTooltipButton } from "@/components/ui/icon-tooltip-button";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { TableSkeleton } from "@/components/dashboard/table-skeleton";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { ShoppingBag } from "lucide-react";
 
 interface Sale {
   id: string;
@@ -41,34 +51,23 @@ interface Sale {
   _count?: { items: number };
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const variants: Record<string, string> = {
-    COMPLETED: "bg-green-100 text-green-800 border-green-200",
-    OPEN: "bg-amber-100 text-amber-800 border-amber-200",
-    CANCELLED: "bg-muted text-muted-foreground",
-  };
-
-  return (
-    <Badge variant="outline" className={variants[status] || ""}>
-      {status}
-    </Badge>
-  );
-}
-
 export default function SalesPage() {
+  const router = useRouter();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [saleTypeFilter, setSaleTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 20;
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(page),
-        limit: "20",
+        limit: String(limit),
       });
       if (saleTypeFilter !== "all") params.set("saleType", saleTypeFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -84,6 +83,7 @@ export default function SalesPage() {
           }))
         );
         setTotalPages(data.pagination?.totalPages || 1);
+        setTotal(data.pagination?.total || 0);
       }
     } finally {
       setLoading(false);
@@ -98,30 +98,30 @@ export default function SalesPage() {
     setPage(1);
   }, [saleTypeFilter, statusFilter]);
 
+  const pageStart = total === 0 ? 0 : (page - 1) * limit + 1;
+  const pageEnd = Math.min(page * limit, total);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sales</h1>
-          <p className="text-muted-foreground">View and manage sales transactions</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ReportExportLink
-            href="/dashboard/reports/sales-register?period=this-month"
-            label="Export sales"
-          />
-          <ReportExportLink
-            href="/dashboard/reports/sales-margin?period=this-month"
-            label="Sales margin"
-          />
-          <Button asChild>
-            <Link href="/dashboard/sales/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New Sale
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Sales"
+        description="View and manage sales transactions"
+        actions={
+          <>
+            <Button variant="outline" className="hidden sm:inline-flex" asChild>
+              <Link href="/dashboard/reports/sales-register?period=this-month">
+                Sales register
+              </Link>
+            </Button>
+            <Button asChild variant="bronze">
+              <Link href="/dashboard/sales/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New Sale
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -136,7 +136,7 @@ export default function SalesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="PURCHASE">Purchase</SelectItem>
+                <SelectItem value="PURCHASE">From Stock</SelectItem>
                 <SelectItem value="CUSTOM_ORDER">Custom Order</SelectItem>
               </SelectContent>
             </Select>
@@ -154,56 +154,82 @@ export default function SalesPage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <TableSkeleton rows={8} cols={7} />
           ) : sales.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No sales yet</p>
+            <EmptyState
+              icon={ShoppingBag}
+              title="No sales found"
+              description="Create a new sale or adjust your filters."
+              action={
+                <Button asChild>
+                  <Link href="/dashboard/sales/new">New Sale</Link>
+                </Button>
+              }
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Final Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell className="font-mono text-sm">
-                      {sale.invoiceNumber || "—"}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(sale.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>{sale.customer?.name || "—"}</TableCell>
-                    <TableCell>{sale._count?.items ?? 0}</TableCell>
-                    <TableCell>{sale.saleType.replace("_", " ")}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={sale.status} />
-                    </TableCell>
-                    <TableCell>{formatPKR(sale.finalPrice)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/dashboard/sales/${sale.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Final Total</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sales.map((sale) => (
+                    <TableRow
+                      key={sale.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/dashboard/sales/${sale.id}`)}
+                    >
+                      <TableCell className="whitespace-nowrap">
+                        {new Date(sale.createdAt).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {sale.invoiceNumber || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {sale.customer?.name || "—"}
+                      </TableCell>
+                      <TableCell>{formatSaleType(sale.saleType)}</TableCell>
+                      <TableCell>{sale._count?.items ?? 0}</TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          label={formatSaleStatus(sale.status)}
+                          variant={saleStatusVariant(sale.status)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatPKR(sale.finalPrice)}
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <IconTooltipButton
+                          label="View sale"
+                          href={`/dashboard/sales/${sale.id}`}
+                          icon={<Eye className="h-4 w-4" />}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-2">
               <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
+                {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex gap-2">
                 <Button
