@@ -1,6 +1,7 @@
 # Venus Silver Collection — Module Task Breakdown
 
 > **Reference:** Full architecture and business rules in [`implementation.md`](./implementation.md)
+> **Stage 2:** See [`implementation_stage2.md`](./implementation_stage2.md) and [`modules_stage.md`](./modules_stage.md) for Sales dual-mode, Expenses, Beopari, Karegar, and dashboard enhancements.
 > **Status:** All modules (0–8) complete ✅
 > **Rule:** Complete and verify each module before starting the next.
 

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse, paginatedResponse } from '@/lib/api-response';
 import { createUserSchema, paginationSchema } from '@/lib/validations';
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const email = searchParams.get('email');
     const role = searchParams.get('role') as 'ADMIN' | 'STAFF' | 'CLERK' | 'ACCOUNTANT' | null;
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
 
     if (name) {
       where.name = { contains: name, mode: 'insensitive' };
@@ -91,11 +92,12 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(user, 201);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2002') {
       return errorResponse('User with this email already exists', 409);
     }
     return errorResponse('Failed to create user', 500);

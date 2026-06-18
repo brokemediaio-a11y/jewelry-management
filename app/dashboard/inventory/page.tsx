@@ -24,6 +24,7 @@ import {
   InventoryItemRow,
 } from "@/components/inventory/inventory-table";
 import { DeleteInventoryDialog } from "@/components/inventory/delete-inventory-dialog";
+import { ReportExportLink } from "@/components/reports/report-export-link";
 
 interface Category {
   id: string;
@@ -118,7 +119,23 @@ export default function InventoryPage() {
             Manage jewelry stock with images, SKUs, and barcodes
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <ReportExportLink
+            href="/dashboard/reports/stock-on-hand?period=this-month"
+            label="Stock report"
+          />
+          <ReportExportLink
+            href="/dashboard/reports/inventory-valuation?period=this-month"
+            label="Valuation"
+          />
+          <ReportExportLink
+            href={
+              categoryFilter !== "all"
+                ? `/dashboard/reports/aging-stock?period=this-month&categoryId=${categoryFilter}`
+                : "/dashboard/reports/aging-stock?period=this-month"
+            }
+            label="Aging stock"
+          />
           <Button variant="outline" asChild>
             <Link href="/dashboard/inventory/print-barcodes?status=AVAILABLE">
               <Printer className="mr-2 h-4 w-4" />

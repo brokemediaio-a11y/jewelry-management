@@ -1,5 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import {
+  getSessionSilverRateOverride,
+} from './silver-rate-session';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_CURRENCY = 'PKR';
@@ -83,6 +86,40 @@ export async function getCurrentSilverRate(): Promise<{
   currency: string;
   fetchedAt: Date;
   fromCache: boolean;
+  isSessionOverride: boolean;
+  lockedUntil: string | null;
+  apiRatePerGram: number | null;
+}> {
+  const currency = getCurrency();
+  const sessionOverride = await getSessionSilverRateOverride();
+
+  if (sessionOverride) {
+    return {
+      ratePerGram: sessionOverride.ratePerGram,
+      currency,
+      fetchedAt: new Date(sessionOverride.setAt),
+      fromCache: false,
+      isSessionOverride: true,
+      lockedUntil: sessionOverride.lockedUntil,
+      apiRatePerGram: null,
+    };
+  }
+
+  const apiRate = await getApiSilverRate();
+
+  return {
+    ...apiRate,
+    isSessionOverride: false,
+    lockedUntil: null,
+    apiRatePerGram: null,
+  };
+}
+
+async function getApiSilverRate(): Promise<{
+  ratePerGram: number;
+  currency: string;
+  fetchedAt: Date;
+  fromCache: boolean;
 }> {
   const currency = getCurrency();
   const cached = await getLatestCachedRate(currency);
@@ -108,4 +145,9 @@ export async function getCurrentSilverRate(): Promise<{
     fetchedAt: latest?.fetchedAt || new Date(),
     fromCache: false,
   };
+}
+
+/** @deprecated Use getCurrentSilverRate — kept for internal refresh flows */
+export async function getApiSilverRateOnly() {
+  return getApiSilverRate();
 }

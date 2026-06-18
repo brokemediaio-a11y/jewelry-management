@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,9 +24,16 @@ import {
 import { getMinSalePrice, getQualityQuotient } from "@/lib/pricing-engine";
 import { formatPKR } from "@/lib/currency-utils";
 import { useSaleSessionStore } from "@/stores/sale-session-store";
+import { useEffectiveSilverRate, useSilverRateStore } from "@/stores/silver-rate-store";
+import { SaleModeSwitch, type SaleMode } from "@/components/sales/sale-mode-switch";
+import { ExternalOrderForm } from "@/components/sales/external-order-form";
 
-export default function NewSalePage() {
+function NewSalePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = (searchParams.get("mode") === "external"
+    ? "external"
+    : "inventory") as SaleMode;
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -60,15 +67,20 @@ export default function NewSalePage() {
     reset,
   } = useSaleSessionStore();
 
-  useEffect(() => {
-    fetch("/api/silver-rates/current")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setSilverRateAtSale(data.data.ratePerGram);
-        }
-      });
+  const effectiveSilverRate = useEffectiveSilverRate();
+  const fetchSilverRate = useSilverRateStore((s) => s.fetchRate);
 
+  useEffect(() => {
+    fetchSilverRate();
+  }, [fetchSilverRate]);
+
+  useEffect(() => {
+    if (effectiveSilverRate > 0) {
+      setSilverRateAtSale(effectiveSilverRate);
+    }
+  }, [effectiveSilverRate, setSilverRateAtSale]);
+
+  useEffect(() => {
     fetch("/api/settings/pricing")
       .then((res) => res.json())
       .then((data) => {
@@ -189,12 +201,25 @@ export default function NewSalePage() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">New Sale</h1>
-          <p className="text-muted-foreground">
-            Scan barcode or enter SKU to add items to cart
-          </p>
+          <p className="text-muted-foreground">Choose sale mode and complete checkout</p>
         </div>
       </div>
 
+      <SaleModeSwitch
+        value={mode}
+        disabled={submitting}
+        onChange={(nextMode) => {
+          const url =
+            nextMode === "external"
+              ? "/dashboard/sales/new?mode=external"
+              : "/dashboard/sales/new";
+          router.replace(url);
+        }}
+      />
+
+      {mode === "external" ? (
+        <ExternalOrderForm />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -257,6 +282,15 @@ export default function NewSalePage() {
           />
         </div>
       </div>
+      )}
     </div>
+  );
+}
+
+export default function NewSalePage() {
+  return (
+    <Suspense>
+      <NewSalePageInner />
+    </Suspense>
   );
 }

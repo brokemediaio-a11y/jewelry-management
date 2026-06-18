@@ -17,11 +17,14 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    closeSaleSchema.parse(body);
+    const parsed = closeSaleSchema.parse(body);
 
     const sale = await prisma.sale.findUnique({
       where: { id },
-      include: { items: { select: { inventoryItemId: true } } },
+      include: {
+        workshopOrder: { select: { status: true } },
+        items: { select: { inventoryItemId: true } },
+      },
     });
 
     if (!sale) {
@@ -36,13 +39,21 @@ export async function POST(
       return errorResponse('Sale is not open', 400);
     }
 
-    const inventoryIds = sale.items.map((i) => i.inventoryItemId);
+    if (sale.workshopOrder && sale.workshopOrder.status !== 'COMPLETE') {
+      return errorResponse('Workshop is not complete', 400);
+    }
+
+    const inventoryIds = sale.items
+      .map((i) => i.inventoryItemId)
+      .filter((id): id is string => Boolean(id));
 
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.inventoryItem.updateMany({
-        where: { id: { in: inventoryIds } },
-        data: { status: 'SOLD' },
-      });
+      if (inventoryIds.length > 0) {
+        await tx.inventoryItem.updateMany({
+          where: { id: { in: inventoryIds } },
+          data: { status: 'SOLD' },
+        });
+      }
 
       return tx.sale.update({
         where: { id },
@@ -50,6 +61,7 @@ export async function POST(
           status: 'COMPLETED',
           closedAt: new Date(),
           remainingAmount: 0,
+          ...(parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
         },
         include: {
           customer: true,

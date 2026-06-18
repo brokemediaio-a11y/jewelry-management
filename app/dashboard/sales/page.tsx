@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { formatPKR } from "@/lib/currency-utils";
+import { ReportExportLink } from "@/components/reports/report-export-link";
 
 interface Sale {
   id: string;
@@ -104,12 +105,22 @@ export default function SalesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sales</h1>
           <p className="text-muted-foreground">View and manage sales transactions</p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/sales/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Sale
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ReportExportLink
+            href="/dashboard/reports/sales-register?period=this-month"
+            label="Export sales"
+          />
+          <ReportExportLink
+            href="/dashboard/reports/sales-margin?period=this-month"
+            label="Sales margin"
+          />
+          <Button asChild>
+            <Link href="/dashboard/sales/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Sale
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

@@ -50,6 +50,8 @@ export function serializeSale<T extends Record<string, unknown>>(sale: T) {
     suggestedSalePrice: toNumber(sale.suggestedSalePrice as DecimalLike),
     finalPrice: toNumber(sale.finalPrice as DecimalLike),
     silverRateAtSale: toNumber(sale.silverRateAtSale as DecimalLike),
+    manualCost:
+      sale.manualCost != null ? toNumber(sale.manualCost as DecimalLike) : null,
     advancePaid:
       sale.advancePaid != null ? toNumber(sale.advancePaid as DecimalLike) : null,
     remainingAmount:

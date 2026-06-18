@@ -27,6 +27,7 @@ import { ImagePicker } from "@/components/inventory/image-picker";
 import { BarcodePreview } from "@/components/inventory/barcode-preview";
 import { generateSKU } from "@/lib/sku-utils";
 import { formatPKR } from "@/lib/currency-utils";
+import { useEffectiveSilverRate, useSilverRateStore } from "@/stores/silver-rate-store";
 
 const inventoryFormSchema = z
   .object({
@@ -156,17 +157,22 @@ export function InventoryForm({ categories, onSubmit, isSubmitting = false }: In
     return Math.round(weight * pricePerGram * 100) / 100;
   }, [weightGrams, purchasePricePerGram]);
 
+  const effectiveSilverRate = useEffectiveSilverRate();
+  const fetchSilverRate = useSilverRateStore((s) => s.fetchRate);
+
   useEffect(() => {
-    fetch("/api/silver-rates/current")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          form.setValue("silverRateAtPurchase", String(data.data.ratePerGram));
-          setRateDate(new Date(data.data.fetchedAt).toLocaleDateString());
-        }
-      })
-      .finally(() => setRateLoading(false));
-  }, [form]);
+    fetchSilverRate().finally(() => setRateLoading(false));
+  }, [fetchSilverRate]);
+
+  useEffect(() => {
+    if (effectiveSilverRate > 0) {
+      form.setValue("silverRateAtPurchase", String(effectiveSilverRate));
+      const rate = useSilverRateStore.getState().rate;
+      if (rate?.fetchedAt) {
+        setRateDate(new Date(rate.fetchedAt).toLocaleDateString());
+      }
+    }
+  }, [effectiveSilverRate, form]);
 
   useEffect(() => {
     fetch("/api/stones")

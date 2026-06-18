@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
+import { SilverRateInitializer } from "@/components/dashboard/todays-silver-rate";
 
 export default function DashboardLayout({
   children,
@@ -8,6 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex h-screen overflow-hidden">
+      <SilverRateInitializer />
       <aside className="hidden md:flex">
         <Sidebar />
       </aside>

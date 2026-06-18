@@ -6,7 +6,7 @@ import {
   paginatedResponse,
 } from '@/lib/api-response';
 import { z } from 'zod';
-import { createSaleSchema, paginationSchema } from '@/lib/validations';
+import { createAnySaleSchema, paginationSchema } from '@/lib/validations';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { getCurrentSilverRate } from '@/lib/silver-rate-service';
@@ -93,7 +93,66 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const data = createSaleSchema.parse(body);
+    const data = createAnySaleSchema.parse(body);
+
+    // External custom order (Not in Inventory)
+    if (!('items' in data)) {
+      const finalPrice = roundPKR(Number(data.finalPrice));
+      const advancePaid = roundPKR(Number(data.advancePaid));
+
+      if (advancePaid <= 0) return errorResponse('Advance paid must be greater than zero', 400);
+      if (advancePaid >= finalPrice) {
+        return errorResponse('Advance paid must be less than final total', 400);
+      }
+
+      const remainingAmount = computeRemainingAmount(finalPrice, advancePaid);
+      const pickupDate = new Date(data.pickupDate);
+      const invoiceNumber = await generateInvoiceNumber();
+
+      const [{ ratePerGram }] = await Promise.all([getCurrentSilverRate()]);
+      const silverRateAtSale = ratePerGram;
+
+      const created = await prisma.$transaction(async (tx) => {
+        const sale = await tx.sale.create({
+          data: {
+            invoiceNumber,
+            saleType: 'CUSTOM_ORDER',
+            status: 'OPEN',
+            source: 'EXTERNAL',
+            customerId: data.customerId,
+            userId: auth.session.id,
+            suggestedSalePrice: new Prisma.Decimal(finalPrice),
+            finalPrice: new Prisma.Decimal(finalPrice),
+            silverRateAtSale: new Prisma.Decimal(silverRateAtSale),
+            advancePaid: new Prisma.Decimal(advancePaid),
+            remainingAmount: new Prisma.Decimal(remainingAmount),
+            pickupDate,
+            paymentMethod: data.paymentMethod,
+            notes: data.notes || null,
+            sampleImageData: data.sampleImageData,
+            sampleImageMimeType: data.sampleImageMimeType,
+            orderDescription: data.orderDescription,
+            manualCost:
+              data.manualCost != null
+                ? new Prisma.Decimal(roundPKR(Number(data.manualCost)))
+                : null,
+          },
+          include: {
+            customer: true,
+            user: { select: { id: true, name: true, email: true } },
+            items: true,
+          },
+        });
+
+        await tx.workshopOrder.create({
+          data: { saleId: sale.id, status: 'SENT_TO_WORKSHOP' },
+        });
+
+        return sale;
+      });
+
+      return successResponse(serializeSale(created as Record<string, unknown>), 201);
+    }
 
     const inventoryIds = data.items.map((i) => i.inventoryItemId);
     const uniqueIds = new Set(inventoryIds);
@@ -209,6 +268,7 @@ export async function POST(request: NextRequest) {
           invoiceNumber,
           saleType: data.saleType,
           status,
+          source: 'INVENTORY',
           customerId: data.customerId,
           userId: auth.session.id,
           suggestedSalePrice: new Prisma.Decimal(suggestedSalePrice),
@@ -224,6 +284,7 @@ export async function POST(request: NextRequest) {
           items: {
             create: pricedItems.map((item) => ({
               inventoryItemId: item.inventoryItemId,
+              categoryName: inventoryItems.find((i) => i.id === item.inventoryItemId)?.category?.name ?? null,
               weightGrams: new Prisma.Decimal(item.weightGrams),
               silverRateAtPurchase: new Prisma.Decimal(item.silverRateAtPurchase),
               purchasePricePerPiece: new Prisma.Decimal(item.purchasePricePerPiece),
@@ -260,6 +321,12 @@ export async function POST(request: NextRequest) {
         where: { id: { in: inventoryIds } },
         data: { status: inventoryStatus },
       });
+
+      if (data.saleType === 'CUSTOM_ORDER') {
+        await tx.workshopOrder.create({
+          data: { saleId: created.id, status: 'SENT_TO_WORKSHOP' },
+        });
+      }
 
       return created;
     });

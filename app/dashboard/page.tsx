@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPKR } from "@/lib/currency-utils";
+import { TodaysSilverRateCard } from "@/components/dashboard/todays-silver-rate";
 
 interface RecentSale {
   id: string;
@@ -38,6 +39,7 @@ interface RecentSale {
   finalPrice: number;
   createdAt: string;
   customer: { id: string; name: string } | null;
+  itemsSummary?: string;
   _count?: { items: number };
 }
 
@@ -46,6 +48,7 @@ interface DashboardStats {
   monthlySalesCount: number;
   monthlyRevenue: number;
   monthlyNetProfit: number;
+  cashInHand?: number;
   openCustomOrders: number;
   recentSales: RecentSale[];
 }
@@ -85,11 +88,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your jewelry shop management
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Overview of your jewelry shop management
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/reports/profit-loss?period=this-month">Financial report</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/sales/new">New Sale</Link>
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -163,7 +176,22 @@ export default function DashboardPage() {
               {loading ? "—" : formatPKR(stats?.monthlyNetProfit ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Sale price minus purchase cost
+              Revenue − purchase cost − external cost − expenses
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? "—" : formatPKR(stats?.cashInHand ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cash sales inflows − cash expenses
             </p>
           </CardContent>
         </Card>
@@ -181,6 +209,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <TodaysSilverRateCard />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -201,30 +231,34 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Date</TableHead>
                   <TableHead>Invoice</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Items Summary</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Total</TableHead>
-                  <TableHead>Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stats.recentSales.map((sale) => (
                   <TableRow key={sale.id}>
+                    <TableCell>
+                      {new Date(sale.createdAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell className="font-mono text-sm">
                       {sale.invoiceNumber || "—"}
                     </TableCell>
                     <TableCell>{sale.customer?.name || "—"}</TableCell>
+                    <TableCell className="max-w-[320px] truncate text-sm text-muted-foreground">
+                      {sale.itemsSummary || "—"}
+                    </TableCell>
                     <TableCell>{sale._count?.items ?? 0}</TableCell>
                     <TableCell>
                       <StatusBadge status={sale.status} />
                     </TableCell>
                     <TableCell>{formatPKR(sale.finalPrice)}</TableCell>
-                    <TableCell>
-                      {new Date(sale.createdAt).toLocaleDateString()}
-                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" asChild>
                         <Link href={`/dashboard/sales/${sale.id}`}>

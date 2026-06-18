@@ -54,6 +54,24 @@ enum StoneOptionKind {
   CLARITY
 }
 
+enum SaleSource {
+  INVENTORY
+  EXTERNAL
+}
+
+enum WorkshopOrderStatus {
+  SENT_TO_WORKSHOP
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum ExpenseType {
+  BEOPARI
+  KAREGAR
+  SHOP
+  HOME
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -67,7 +85,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  sales Sale[]
+  sales    Sale[]
+  expenses Expense[]
 
   @@map("users")
 }
@@ -79,7 +98,8 @@ model Category {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  inventoryItems InventoryItem[]
+  inventoryItems   InventoryItem[]
+  beopariPurchases BeopariPurchase[]
 
   @@map("categories")
 }
@@ -171,6 +191,7 @@ model Sale {
   invoiceNumber      String?       @unique @map("invoice_number")
   saleType           SaleType      @map("sale_type")
   status             SaleStatus    @default(COMPLETED)
+  source             SaleSource    @default(INVENTORY)
   customerId         String?       @map("customer_id")
   userId             String        @map("user_id")
   suggestedSalePrice Decimal       @map("suggested_sale_price") @db.Decimal(10, 2)
@@ -182,12 +203,18 @@ model Sale {
   closedAt           DateTime?     @map("closed_at")
   paymentMethod      PaymentMethod @map("payment_method")
   notes              String?       @db.Text
+  sampleImageData     String?      @map("sample_image_data") @db.Text
+  sampleImageMimeType String?      @map("sample_image_mime_type")
+  orderDescription    String?      @map("order_description") @db.Text
+  manualCost          Decimal?     @map("manual_cost") @db.Decimal(10, 2)
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items    SaleItem[]
+  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         SaleItem[]
+  workshopOrder WorkshopOrder?
+  expenses      Expense[]
 
   @@index([customerId])
   @@index([userId])
@@ -195,13 +222,15 @@ model Sale {
   @@index([invoiceNumber])
   @@index([status])
   @@index([saleType])
+  @@index([source])
   @@map("sales")
 }
 
 model SaleItem {
   id                    String   @id @default(uuid())
   saleId                String   @map("sale_id")
-  inventoryItemId       String   @map("inventory_item_id")
+  inventoryItemId       String?  @map("inventory_item_id")
+  categoryName          String?  @map("category_name")
   weightGrams           Decimal  @map("weight_grams") @db.Decimal(10, 3)
   silverRateAtPurchase  Decimal  @map("silver_rate_at_purchase") @db.Decimal(10, 2)
   purchasePricePerPiece Decimal  @map("purchase_price_per_piece") @db.Decimal(10, 2)
@@ -217,12 +246,139 @@ model SaleItem {
   stonePrice            Decimal?    @map("stone_price") @db.Decimal(10, 2)
   createdAt             DateTime    @default(now()) @map("created_at")
 
-  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  sale          Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
   @@index([inventoryItemId])
   @@map("sale_items")
+}
+
+model Karegar {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workshopOrders WorkshopOrder[]
+  expenses       Expense[]
+
+  @@map("karegars")
+}
+
+model WorkshopOrder {
+  id          String              @id @default(uuid())
+  saleId      String              @unique @map("sale_id")
+  karegarId   String?             @map("karegar_id")
+  status      WorkshopOrderStatus @default(SENT_TO_WORKSHOP)
+  assignedAt  DateTime?           @map("assigned_at")
+  completedAt DateTime?           @map("completed_at")
+  notes       String?             @db.Text
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  karegar Karegar? @relation(fields: [karegarId], references: [id], onDelete: SetNull)
+  allocations ExpenseWorkshopAllocation[]
+
+  @@index([status])
+  @@index([karegarId])
+  @@map("workshop_orders")
+}
+
+model Expense {
+  id            String        @id @default(uuid())
+  expenseType   ExpenseType   @map("expense_type")
+  amount        Decimal       @db.Decimal(10, 2)
+  expenseDate   DateTime      @default(now()) @map("expense_date")
+  description   String?       @db.Text
+  paymentMethod PaymentMethod @default(CASH) @map("payment_method")
+  userId        String        @map("user_id")
+
+  beopariId String? @map("beopari_id")
+  karegarId String? @map("karegar_id")
+  saleId    String? @map("sale_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  beopari Beopari? @relation(fields: [beopariId], references: [id], onDelete: SetNull)
+  karegar Karegar? @relation(fields: [karegarId], references: [id], onDelete: SetNull)
+  sale    Sale?   @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  beopariAllocations  ExpenseBeopariAllocation[]
+  workshopAllocations ExpenseWorkshopAllocation[]
+
+  @@index([expenseType])
+  @@index([expenseDate])
+  @@index([beopariId])
+  @@index([karegarId])
+  @@map("expenses")
+}
+
+model ExpenseBeopariAllocation {
+  id                String  @id @default(uuid())
+  expenseId         String  @map("expense_id")
+  beopariPurchaseId String  @map("beopari_purchase_id")
+  amount            Decimal @db.Decimal(10, 2)
+
+  expense         Expense         @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  beopariPurchase BeopariPurchase @relation(fields: [beopariPurchaseId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, beopariPurchaseId])
+  @@index([beopariPurchaseId])
+  @@map("expense_beopari_allocations")
+}
+
+model ExpenseWorkshopAllocation {
+  id              String  @id @default(uuid())
+  expenseId       String  @map("expense_id")
+  workshopOrderId String  @map("workshop_order_id")
+  amount          Decimal @db.Decimal(10, 2)
+
+  expense       Expense       @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  workshopOrder WorkshopOrder @relation(fields: [workshopOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, workshopOrderId])
+  @@index([workshopOrderId])
+  @@map("expense_workshop_allocations")
+}
+
+model Beopari {
+  id                String   @id @default(uuid())
+  name              String
+  businessStartDate DateTime @map("business_start_date")
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  purchases BeopariPurchase[]
+  expenses  Expense[]
+
+  @@map("beoparis")
+}
+
+model BeopariPurchase {
+  id           String   @id @default(uuid())
+  beopariId    String   @map("beopari_id")
+  categoryId   String?  @map("category_id")
+  categoryName String   @map("category_name")
+  totalWeight  Decimal  @map("total_weight") @db.Decimal(10, 3)
+  quantity     Int
+  costPerGram  Decimal  @map("cost_per_gram") @db.Decimal(10, 2)
+  totalCost    Decimal  @map("total_cost") @db.Decimal(10, 2)
+  purchaseDate DateTime @default(now()) @map("purchase_date")
+  notes        String?  @db.Text
+
+  beopari     Beopari    @relation(fields: [beopariId], references: [id], onDelete: Cascade)
+  category    Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  allocations ExpenseBeopariAllocation[]
+
+  @@index([beopariId])
+  @@map("beopari_purchases")
 }
 
 model Settings {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse, paginatedResponse } from '@/lib/api-response';
 import { createCustomerSchema, paginationSchema } from '@/lib/validations';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     const phone = searchParams.get('phone');
     const email = searchParams.get('email');
 
-    const where: any = {};
+    const where: Prisma.CustomerWhereInput = {};
 
     if (name) {
       where.name = { contains: name, mode: 'insensitive' };
@@ -59,9 +60,10 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(customer, 201);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
     return errorResponse('Failed to create customer', 500);
   }

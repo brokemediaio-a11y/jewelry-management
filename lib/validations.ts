@@ -158,9 +158,106 @@ export const createSaleSchema = z.object({
   pickupDate: z.string().optional().nullable(),
 });
 
+export const createExternalCustomOrderSchema = z.object({
+  source: z.literal('EXTERNAL'),
+  saleType: z.literal('CUSTOM_ORDER'),
+  customerId: z.string().uuid('Invalid customer ID'),
+  sampleImageData: z.string().min(1, 'Sample image is required'),
+  sampleImageMimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  orderDescription: z.string().min(10, 'Order description must be at least 10 characters'),
+  manualCost: z.number().nonnegative().optional().nullable().or(z.string().transform(Number).optional().nullable()),
+  finalPrice: z.number().positive().or(z.string().transform(Number)),
+  advancePaid: z.number().positive().or(z.string().transform(Number)),
+  pickupDate: z.string().min(1, 'Pickup date is required'),
+  paymentMethod: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE']),
+  notes: z.string().optional().nullable(),
+});
+
+export const createAnySaleSchema = z.union([createSaleSchema, createExternalCustomOrderSchema]);
+
 export const closeSaleSchema = z.object({
   paymentMethod: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'CHEQUE']).optional(),
 });
+
+// Expenses
+export const expenseTypeSchema = z.enum(["BEOPARI", "KAREGAR", "SHOP", "HOME"]);
+
+const expenseAllocationSchema = z.object({
+  id: z.string().uuid().optional(),
+  targetId: z.string().uuid("Invalid target ID"),
+  amount: z.number().positive().or(z.string().transform(Number)),
+});
+
+export const createExpenseSchema = z
+  .object({
+    expenseType: expenseTypeSchema,
+    amount: z.number().positive().or(z.string().transform(Number)),
+    expenseDate: z.string().optional(),
+    paymentMethod: z.enum(["CASH", "CARD", "UPI", "BANK_TRANSFER", "CHEQUE"]).default("CASH"),
+    description: z.string().optional().nullable(),
+    beopariId: z.string().uuid().optional().nullable(),
+    karegarId: z.string().uuid().optional().nullable(),
+    allocations: z.array(expenseAllocationSchema).optional().default([]),
+  })
+  .superRefine((data, ctx) => {
+    const desc = (data.description || "").trim();
+    if (data.expenseType === "SHOP" || data.expenseType === "HOME") {
+      if (desc.length < 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Description is required (min 10 characters)",
+          path: ["description"],
+        });
+      }
+    }
+
+    if (data.expenseType === "BEOPARI") {
+      if (!data.beopariId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Beopari is required",
+          path: ["beopariId"],
+        });
+      }
+      if (!data.allocations.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select at least one purchase to allocate payment",
+          path: ["allocations"],
+        });
+      }
+    }
+
+    if (data.expenseType === "KAREGAR") {
+      if (!data.karegarId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Karegar is required",
+          path: ["karegarId"],
+        });
+      }
+      if (!data.allocations.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select at least one workshop order to allocate payment",
+          path: ["allocations"],
+        });
+      }
+    }
+
+    if (data.expenseType === "BEOPARI" || data.expenseType === "KAREGAR") {
+      const sum = data.allocations.reduce((acc, a) => acc + Number(a.amount || 0), 0);
+      if (Math.abs(sum - Number(data.amount)) > 0.009) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Allocations total must equal expense amount",
+          path: ["allocations"],
+        });
+      }
+    }
+  });
+
+export const updateExpenseSchema = createExpenseSchema.partial();
 
 // Auth
 export const loginSchema = z.object({

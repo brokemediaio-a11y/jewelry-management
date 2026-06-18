@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -54,6 +55,11 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
             <TableCell>{customer.email || "—"}</TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="icon" asChild>
+                  <Link href={`/dashboard/customers/${customer.id}`}>
+                    <Eye className="h-4 w-4" />
+                  </Link>
+                </Button>
                 {onEdit && (
                   <Button variant="ghost" size="icon" onClick={() => onEdit(customer)}>
                     <Pencil className="h-4 w-4" />

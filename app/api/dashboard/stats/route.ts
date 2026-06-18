@@ -1,6 +1,8 @@
 import { successResponse, errorResponse } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { formatSaleItemsSummary } from '@/lib/sale-summary-utils';
+import { calculateCashInHand } from '@/lib/cash-utils';
 
 function getMonthStart(): Date {
   const now = new Date();
@@ -21,6 +23,9 @@ export async function GET() {
       monthlySalesCount,
       monthlyRevenueAgg,
       monthlyProfitAgg,
+      monthlyExternalCostAgg,
+      monthlyExpensesAgg,
+      cashInHand,
       openCustomOrders,
       recentSales,
     ] = await Promise.all([
@@ -50,6 +55,19 @@ export async function GET() {
           purchasePricePerPiece: true,
         },
       }),
+      prisma.sale.aggregate({
+        where: {
+          createdAt: { gte: monthStart },
+          status: 'COMPLETED',
+          source: 'EXTERNAL',
+        },
+        _sum: { manualCost: true },
+      }),
+      prisma.expense.aggregate({
+        where: { expenseDate: { gte: monthStart } },
+        _sum: { amount: true },
+      }),
+      calculateCashInHand(),
       prisma.sale.count({
         where: {
           status: 'OPEN',
@@ -65,10 +83,27 @@ export async function GET() {
           invoiceNumber: true,
           saleType: true,
           status: true,
+          source: true,
+          orderDescription: true,
           finalPrice: true,
           createdAt: true,
           customer: { select: { id: true, name: true } },
           _count: { select: { items: true } },
+          items: {
+            select: {
+              categoryName: true,
+              stoneTypeName: true,
+              stoneColorName: true,
+              stoneCutName: true,
+              stoneClarityName: true,
+              stonePrice: true,
+              inventoryItem: {
+                select: {
+                  category: { select: { name: true } },
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -77,16 +112,33 @@ export async function GET() {
     const monthlyPurchaseCost = Number(
       monthlyProfitAgg._sum.purchasePricePerPiece || 0
     );
+    const monthlyExternalCost = Number(monthlyExternalCostAgg._sum.manualCost || 0);
+    const monthlyExpenses = Number(monthlyExpensesAgg._sum.amount || 0);
 
     return successResponse({
       availableInventory,
       monthlySalesCount,
       monthlyRevenue: Number(monthlyRevenueAgg._sum.finalPrice || 0),
-      monthlyNetProfit: monthlySaleRevenue - monthlyPurchaseCost,
+      monthlyNetProfit:
+        monthlySaleRevenue - monthlyPurchaseCost - monthlyExternalCost - monthlyExpenses,
+      cashInHand,
       openCustomOrders,
       recentSales: recentSales.map((sale) => ({
         ...sale,
         finalPrice: Number(sale.finalPrice),
+        itemsSummary: formatSaleItemsSummary({
+          source: sale.source,
+          orderDescription: sale.orderDescription,
+          items: sale.items.map((i) => ({
+            categoryName: i.categoryName,
+            inventoryItem: i.inventoryItem,
+            stoneTypeName: i.stoneTypeName,
+            stoneColorName: i.stoneColorName,
+            stoneCutName: i.stoneCutName,
+            stoneClarityName: i.stoneClarityName,
+            stonePrice: i.stonePrice != null ? Number(i.stonePrice) : null,
+          })),
+        }),
       })),
     });
   } catch (error) {

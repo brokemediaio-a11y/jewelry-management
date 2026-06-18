@@ -2,19 +2,35 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api-response';
 import { updateCustomerSchema } from '@/lib/validations';
+import { paginationSchema } from '@/lib/validations';
+import { requireAuth } from '@/lib/auth';
+import { formatSaleItemsSummary } from '@/lib/sale-summary-utils';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth();
+  if ('error' in auth) {
+    return errorResponse(auth.error, auth.status);
+  }
+
   try {
     const { id } = await params;
+
+    const searchParams = request.nextUrl.searchParams;
+    const { page, limit } = paginationSchema.parse({
+      page: searchParams.get('page') || '1',
+      limit: searchParams.get('limit') || '10',
+    });
+    const skip = (page - 1) * limit;
 
     const customer = await prisma.customer.findUnique({
       where: { id },
       include: {
         sales: {
-          take: 10,
+          skip,
+          take: limit,
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
@@ -22,9 +38,28 @@ export async function GET(
             suggestedSalePrice: true,
             finalPrice: true,
             saleType: true,
+            source: true,
             status: true,
             paymentMethod: true,
+            advancePaid: true,
             createdAt: true,
+            orderDescription: true,
+            items: {
+              select: {
+                categoryName: true,
+                stoneTypeName: true,
+                stoneColorName: true,
+                stoneCutName: true,
+                stoneClarityName: true,
+                stonePrice: true,
+                inventoryItem: {
+                  select: {
+                    category: { select: { name: true } },
+                  },
+                },
+              },
+            },
+            workshopOrder: { select: { id: true, status: true, karegarId: true } },
           },
         },
         _count: {
@@ -37,7 +72,28 @@ export async function GET(
       return errorResponse('Customer not found', 404);
     }
 
-    return successResponse(customer);
+    return successResponse({
+      ...customer,
+      sales: customer.sales.map((s) => ({
+        ...s,
+        suggestedSalePrice: Number(s.suggestedSalePrice),
+        finalPrice: Number(s.finalPrice),
+        advancePaid: s.advancePaid != null ? Number(s.advancePaid) : null,
+        itemsSummary: formatSaleItemsSummary({
+          source: s.source,
+          orderDescription: s.orderDescription,
+          items: s.items.map((i) => ({
+            categoryName: i.categoryName,
+            inventoryItem: i.inventoryItem,
+            stoneTypeName: i.stoneTypeName,
+            stoneColorName: i.stoneColorName,
+            stoneCutName: i.stoneCutName,
+            stoneClarityName: i.stoneClarityName,
+            stonePrice: i.stonePrice != null ? Number(i.stonePrice) : null,
+          })),
+        }),
+      })),
+    });
   } catch (error) {
     return errorResponse('Failed to fetch customer', 500);
   }
@@ -58,11 +114,12 @@ export async function PUT(
     });
 
     return successResponse(customer);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('Customer not found', 404);
     }
     return errorResponse('Failed to update customer', 500);
@@ -81,8 +138,8 @@ export async function DELETE(
     });
 
     return successResponse({ message: 'Customer deleted successfully' });
-  } catch (error: any) {
-    if (error.code === 'P2025') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('Customer not found', 404);
     }
     return errorResponse('Failed to delete customer', 500);

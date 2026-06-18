@@ -8,6 +8,10 @@ import {
   Gem,
   Users,
   ShoppingCart,
+  Receipt,
+  FileBarChart,
+  HandCoins,
+  Hammer,
   Warehouse,
   Settings,
   Menu,
@@ -23,6 +27,36 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Sales",
+    href: "/dashboard/sales",
+    icon: ShoppingCart,
+  },
+  {
+    title: "Expenses",
+    href: "/dashboard/expenses",
+    icon: Receipt,
+  },
+  {
+    title: "Reports",
+    href: "/dashboard/reports",
+    icon: FileBarChart,
+  },
+  {
+    title: "Beopari",
+    href: "/dashboard/beopari",
+    icon: HandCoins,
+  },
+  {
+    title: "Karegar",
+    href: "/dashboard/karegar",
+    icon: Hammer,
+  },
+  {
+    title: "Inventory",
+    href: "/dashboard/inventory",
+    icon: Warehouse,
+  },
+  {
     title: "Categories",
     href: "/dashboard/categories",
     icon: FolderTree,
@@ -36,16 +70,6 @@ const navItems = [
     title: "Customers",
     href: "/dashboard/customers",
     icon: Users,
-  },
-  {
-    title: "Sales",
-    href: "/dashboard/sales",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Inventory",
-    href: "/dashboard/inventory",
-    icon: Warehouse,
   },
   {
     title: "Settings",

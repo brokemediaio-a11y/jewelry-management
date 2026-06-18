@@ -54,11 +54,12 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(category, 201);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2002') {
       return errorResponse('Category with this name already exists', 409);
     }
     return errorResponse('Failed to create category', 500);

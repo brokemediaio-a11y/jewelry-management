@@ -21,6 +21,7 @@ export async function GET(
       include: {
         customer: true,
         user: { select: { id: true, name: true, email: true } },
+        workshopOrder: { include: { karegar: { select: { id: true, name: true } } } },
         items: {
           include: {
             inventoryItem: {
@@ -72,17 +73,23 @@ export async function DELETE(
       return errorResponse('Sale is already cancelled', 400);
     }
 
-    const inventoryIds = sale.items.map((i) => i.inventoryItemId);
+    const inventoryIds = sale.items
+      .map((i) => i.inventoryItemId)
+      .filter((invId): invId is string => Boolean(invId));
 
     await prisma.$transaction([
       prisma.sale.update({
         where: { id },
         data: { status: 'CANCELLED' },
       }),
-      prisma.inventoryItem.updateMany({
-        where: { id: { in: inventoryIds } },
-        data: { status: 'AVAILABLE' },
-      }),
+      ...(inventoryIds.length > 0
+        ? [
+            prisma.inventoryItem.updateMany({
+              where: { id: { in: inventoryIds } },
+              data: { status: 'AVAILABLE' },
+            }),
+          ]
+        : []),
     ]);
 
     return successResponse({ message: 'Sale cancelled successfully' });

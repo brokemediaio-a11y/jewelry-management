@@ -27,6 +27,7 @@ import {
   CustomerRow,
 } from "@/components/customers/customer-table";
 import { DeleteCustomerDialog } from "@/components/customers/delete-customer-dialog";
+import { ReportExportLink } from "@/components/reports/report-export-link";
 
 function matchesSearch(customer: CustomerRow, query: string): boolean {
   const q = query.toLowerCase();
@@ -155,10 +156,20 @@ export default function CustomersPage() {
             Manage your customer database
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Customer
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ReportExportLink
+            href="/dashboard/reports/top-customers?period=this-month"
+            label="Top customers"
+          />
+          <ReportExportLink
+            href="/dashboard/reports/customer-summary?period=this-month"
+            label="Customer summary"
+          />
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Customer
+          </Button>
+        </div>
       </div>
 
       <Card>

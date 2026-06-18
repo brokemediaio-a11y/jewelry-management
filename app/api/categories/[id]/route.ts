@@ -48,14 +48,15 @@ export async function PUT(
     });
 
     return successResponse(category);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('Category not found', 404);
     }
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2002') {
       return errorResponse('Category with this name already exists', 409);
     }
     return errorResponse('Failed to update category', 500);
@@ -87,8 +88,8 @@ export async function DELETE(
     });
 
     return successResponse({ message: 'Category deleted successfully' });
-  } catch (error: any) {
-    if (error.code === 'P2025') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('Category not found', 404);
     }
     return errorResponse('Failed to delete category', 500);

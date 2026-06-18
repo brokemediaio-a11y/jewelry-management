@@ -59,9 +59,10 @@ export async function POST(request: NextRequest) {
     await Promise.all(updates);
 
     return successResponse({ message: 'Settings updated successfully' });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
     return errorResponse('Failed to update settings', 500);
   }
@@ -92,9 +93,10 @@ export async function PUT(request: NextRequest) {
     });
 
     return successResponse(setting);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
     return errorResponse('Failed to update setting', 500);
   }

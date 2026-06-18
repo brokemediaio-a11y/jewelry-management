@@ -26,6 +26,7 @@ import { formatPKR } from "@/lib/currency-utils";
 import { getImageSrc } from "@/lib/image-utils";
 import { formatItemQuality, formatStoneSnapshot } from "@/lib/stone-utils";
 import { CloseSaleDialog } from "@/components/sales/close-sale-dialog";
+import { WorkshopStatusBanner } from "@/components/sales/workshop-status-banner";
 import "./print.css";
 
 interface SaleItem {
@@ -56,6 +57,7 @@ interface SaleDetail {
   invoiceNumber: string | null;
   saleType: string;
   status: string;
+  source?: "INVENTORY" | "EXTERNAL";
   suggestedSalePrice: number;
   finalPrice: number;
   silverRateAtSale: number;
@@ -64,6 +66,10 @@ interface SaleDetail {
   pickupDate: string | null;
   paymentMethod: string;
   notes: string | null;
+  sampleImageData?: string | null;
+  sampleImageMimeType?: string | null;
+  orderDescription?: string | null;
+  manualCost?: number | null;
   createdAt: string;
   closedAt: string | null;
   customer: {
@@ -74,6 +80,10 @@ interface SaleDetail {
   } | null;
   user: { name: string };
   items: SaleItem[];
+  workshopOrder?: {
+    status: string;
+    karegar?: { id: string; name: string } | null;
+  } | null;
   shopInfo?: {
     name: string;
     address: string;
@@ -136,12 +146,16 @@ export default function SaleDetailPage() {
     pdf.save(`${sale.invoiceNumber || sale.id}.pdf`);
   };
 
-  const handleCloseSale = async () => {
+  const handleCloseSale = async (paymentMethod?: string) => {
     setClosing(true);
     setCloseError(null);
 
     try {
-      const res = await fetch(`/api/sales/${id}/close`, { method: "POST" });
+      const res = await fetch(`/api/sales/${id}/close`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(paymentMethod ? { paymentMethod } : {}),
+      });
       const data = await res.json();
 
       if (data.success) {
@@ -193,6 +207,11 @@ export default function SaleDetailPage() {
   const isOpenCustomOrder =
     sale.saleType === "CUSTOM_ORDER" && sale.status === "OPEN";
   const isPartialPayment = sale.status === "OPEN";
+  const isExternal = sale.source === "EXTERNAL";
+  const workshopIncomplete =
+    isOpenCustomOrder &&
+    sale.workshopOrder &&
+    sale.workshopOrder.status !== "COMPLETE";
 
   return (
     <div className="space-y-6">
@@ -221,7 +240,13 @@ export default function SaleDetailPage() {
             PDF
           </Button>
           {isOpenCustomOrder && (
-            <Button onClick={() => setCloseOpen(true)}>Close Sale</Button>
+            <Button
+              onClick={() => setCloseOpen(true)}
+              disabled={Boolean(workshopIncomplete)}
+              title={workshopIncomplete ? "Workshop must be COMPLETE to close sale" : undefined}
+            >
+              Close Sale
+            </Button>
           )}
           {sale.status !== "CANCELLED" && (
             <Button
@@ -235,6 +260,13 @@ export default function SaleDetailPage() {
           )}
         </div>
       </div>
+
+      {sale.saleType === "CUSTOM_ORDER" && sale.workshopOrder && (
+        <WorkshopStatusBanner
+          workshopOrder={sale.workshopOrder}
+          saleStatus={sale.status}
+        />
+      )}
 
       <div ref={invoiceRef} className="invoice-content space-y-6 bg-white p-6">
         {isPartialPayment && (
@@ -273,48 +305,82 @@ export default function SaleDetailPage() {
           </div>
         )}
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Item</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Quality</TableHead>
-              <TableHead>Stone</TableHead>
-              <TableHead>Weight</TableHead>
-              <TableHead className="text-right">Suggested</TableHead>
-              <TableHead className="text-right">Final</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sale.items.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <img
-                    src={getImageSrc(item.inventoryItem.imageData)}
-                    alt={item.inventoryItem.sku}
-                    className="h-10 w-10 rounded object-cover"
-                  />
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {item.inventoryItem.sku}
-                </TableCell>
-                <TableCell>{item.inventoryItem.category?.name || "—"}</TableCell>
-                <TableCell>{formatItemQuality(item.itemQuality)}</TableCell>
-                <TableCell className="max-w-[200px] text-sm">
-                  {formatStoneSnapshot(item) || "—"}
-                </TableCell>
-                <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
-                <TableCell className="text-right">
-                  {formatPKR(item.suggestedSalePrice)}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatPKR(item.finalPrice)}
-                </TableCell>
+        {isExternal ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">External custom order</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {sale.sampleImageData && sale.sampleImageMimeType && (
+                <img
+                  src={`data:${sale.sampleImageMimeType};base64,${sale.sampleImageData}`}
+                  alt="Sample"
+                  className="h-40 w-40 rounded border object-cover"
+                />
+              )}
+              <div>
+                <p className="text-muted-foreground">Description</p>
+                <p className="whitespace-pre-wrap">{sale.orderDescription || "—"}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {sale.workshopOrder && (
+                  <div>
+                    <p className="text-muted-foreground">Workshop status</p>
+                    <p className="font-medium">
+                      {sale.workshopOrder.status}
+                      {sale.workshopOrder.karegar?.name
+                        ? ` — ${sale.workshopOrder.karegar.name}`
+                        : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Item</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Quality</TableHead>
+                <TableHead>Stone</TableHead>
+                <TableHead>Weight</TableHead>
+                <TableHead className="text-right">Suggested</TableHead>
+                <TableHead className="text-right">Final</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {sale.items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <img
+                      src={getImageSrc(item.inventoryItem.imageData)}
+                      alt={item.inventoryItem.sku}
+                      className="h-10 w-10 rounded object-cover"
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {item.inventoryItem.sku}
+                  </TableCell>
+                  <TableCell>{item.inventoryItem.category?.name || "—"}</TableCell>
+                  <TableCell>{formatItemQuality(item.itemQuality)}</TableCell>
+                  <TableCell className="max-w-[200px] text-sm">
+                    {formatStoneSnapshot(item) || "—"}
+                  </TableCell>
+                  <TableCell>{item.weightGrams.toFixed(3)} g</TableCell>
+                  <TableCell className="text-right">
+                    {formatPKR(item.suggestedSalePrice)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatPKR(item.finalPrice)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
 
         <div className="flex justify-end">
           <div className="w-full max-w-xs space-y-2 text-sm">

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api-response';
 import { updateUserSchema } from '@/lib/validations';
@@ -68,7 +69,7 @@ export async function PUT(
     const body = await request.json();
     const data = updateUserSchema.parse(body);
 
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (data.name !== undefined) {
       updateData.name = data.name;
     }
@@ -96,14 +97,15 @@ export async function PUT(
     });
 
     return successResponse(user);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return errorResponse(error.errors[0].message, 400);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { name?: string }).name === 'ZodError') {
+      const first = (error as { errors?: Array<{ message?: string }> }).errors?.[0]?.message;
+      return errorResponse(first || 'Validation error', 400);
     }
-    if (error.code === 'P2025') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('User not found', 404);
     }
-    if (error.code === 'P2002') {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2002') {
       return errorResponse('User with this email already exists', 409);
     }
     return errorResponse('Failed to update user', 500);
@@ -127,8 +129,8 @@ export async function DELETE(
     });
 
     return successResponse({ message: 'User deleted successfully' });
-  } catch (error: any) {
-    if (error.code === 'P2025') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && (error as { code?: string }).code === 'P2025') {
       return errorResponse('User not found', 404);
     }
     return errorResponse('Failed to delete user', 500);
