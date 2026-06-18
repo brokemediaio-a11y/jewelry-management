@@ -269,14 +269,14 @@ export const createUserSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['ADMIN', 'STAFF', 'CLERK', 'ACCOUNTANT']).default('STAFF'),
+  role: z.enum(['ADMIN', 'STAFF', 'CLERK', 'ACCOUNTANT', 'WORKER']).default('STAFF'),
 });
 
 export const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
-  role: z.enum(['ADMIN', 'STAFF', 'CLERK', 'ACCOUNTANT']).optional(),
+  role: z.enum(['ADMIN', 'STAFF', 'CLERK', 'ACCOUNTANT', 'WORKER']).optional(),
 });
 
 // Query

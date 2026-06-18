@@ -21,6 +21,7 @@ const categories = [
 
 async function main() {
   const passwordHash = await bcrypt.hash('admin123', 10);
+  const workerPasswordHash = await bcrypt.hash('worker123', 10);
 
   await prisma.user.upsert({
     where: { email: 'admin@venus.com' },
@@ -34,6 +35,21 @@ async function main() {
       email: 'admin@venus.com',
       passwordHash,
       role: UserRole.ADMIN,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'worker@venus.com' },
+    update: {
+      name: 'Worker',
+      passwordHash: workerPasswordHash,
+      role: UserRole.WORKER,
+    },
+    create: {
+      name: 'Worker',
+      email: 'worker@venus.com',
+      passwordHash: workerPasswordHash,
+      role: UserRole.WORKER,
     },
   });
 
@@ -64,7 +80,7 @@ async function main() {
     }
   }
 
-  console.log('Seed completed: admin user + categories + stone options');
+  console.log('Seed completed: admin + worker users, categories, stone options');
 }
 
 main()

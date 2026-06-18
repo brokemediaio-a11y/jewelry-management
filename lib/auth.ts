@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/auth-constants';
+import { createSessionToken, verifySessionToken } from '@/lib/session-token';
 
 export { SESSION_COOKIE } from '@/lib/auth-constants';
 
@@ -14,14 +14,6 @@ export type SessionUser = {
   role: UserRole;
 };
 
-function getSecretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) {
-    throw new Error('AUTH_SECRET environment variable is not set');
-  }
-  return new TextEncoder().encode(secret);
-}
-
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
@@ -30,27 +22,16 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export async function createSessionToken(userId: string): Promise<string> {
-  return new SignJWT({ userId })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .setIssuedAt()
-    .sign(getSecretKey());
-}
-
-export async function verifySessionToken(token: string): Promise<{ userId: string } | null> {
-  try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    const userId = payload.userId;
-    if (typeof userId !== 'string' || !userId) return null;
-    return { userId };
-  } catch {
-    return null;
-  }
-}
-
 export async function createSession(userId: string): Promise<void> {
-  const token = await createSessionToken(userId);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const token = await createSessionToken(userId, user.role);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -84,7 +65,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
 type AuthResult =
   | { session: SessionUser }
-  | { error: string; status: 401 };
+  | { error: string; status: 401 | 403 };
 
 type AdminResult =
   | { session: SessionUser }
@@ -107,4 +88,16 @@ export async function requireAdmin(): Promise<AdminResult> {
     return { error: 'Forbidden: Admin access required', status: 403 };
   }
   return { session };
+}
+
+export async function requireFullAccess(): Promise<AuthResult> {
+  const auth = await requireAuth();
+  if ('error' in auth) return auth;
+  if (
+    auth.session.role !== UserRole.ADMIN &&
+    auth.session.role !== UserRole.STAFF
+  ) {
+    return { error: 'Forbidden', status: 403 };
+  }
+  return auth;
 }

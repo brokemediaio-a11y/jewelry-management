@@ -24,6 +24,8 @@ import { getModuleKey, moduleStyleVars, type ModuleKey } from "@/lib/module-them
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { isWorkerRole } from "@/lib/role-access";
+import { useAuthUser } from "@/components/dashboard/use-auth-user";
 
 type NavItem = {
   title: string;
@@ -78,6 +80,39 @@ const navSections: NavSection[] = [
     ],
   },
 ];
+
+const workerNavSections: NavSection[] = [
+  {
+    label: "Sales",
+    items: [
+      {
+        title: "New Sale",
+        href: "/dashboard/sales/new",
+        icon: PlusCircle,
+        module: "new-sale",
+        accent: true,
+      },
+      { title: "Sales", href: "/dashboard/sales", icon: ShoppingCart, module: "sales" },
+    ],
+  },
+  {
+    label: "Inventory",
+    items: [
+      { title: "Inventory", href: "/dashboard/inventory", icon: Warehouse, module: "inventory" },
+      {
+        title: "Add Item",
+        href: "/dashboard/inventory/new",
+        icon: PlusCircle,
+        module: "inventory",
+      },
+    ],
+  },
+];
+
+function getNavSections(role: string | undefined): NavSection[] {
+  if (role && isWorkerRole(role)) return workerNavSections;
+  return navSections;
+}
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
@@ -138,9 +173,9 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
-function SidebarBrand() {
+function SidebarBrand({ homeHref }: { homeHref: string }) {
   return (
-    <Link href="/dashboard" className="flex items-center gap-3 px-2 py-1">
+    <Link href={homeHref} className="flex items-center gap-3 px-2 py-1">
       <Image
         src="/venus_logo.png"
         alt="Venus Silver Collection"
@@ -153,10 +188,16 @@ function SidebarBrand() {
   );
 }
 
-function SidebarNav({ pathname }: { pathname: string }) {
+function SidebarNav({
+  pathname,
+  sections,
+}: {
+  pathname: string;
+  sections: NavSection[];
+}) {
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto p-4">
-      {navSections.map((section, index) => (
+      {sections.map((section, index) => (
         <div key={section.label}>
           {index > 0 && <Separator className="mb-4" />}
           <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -175,6 +216,10 @@ function SidebarNav({ pathname }: { pathname: string }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuthUser();
+  const sections = getNavSections(user?.role);
+  const homeHref =
+    user?.role && isWorkerRole(user.role) ? "/dashboard/sales/new" : "/dashboard";
   const activeModule = getModuleKey(pathname);
   const accent = moduleStyleVars(activeModule).accent;
 
@@ -186,15 +231,19 @@ export function Sidebar() {
       }}
     >
       <div className="flex h-16 items-center border-b border-sidebar-border px-4">
-        <SidebarBrand />
+        <SidebarBrand homeHref={homeHref} />
       </div>
-      <SidebarNav pathname={pathname} />
+      <SidebarNav pathname={pathname} sections={sections} />
     </div>
   );
 }
 
 export function MobileSidebar() {
   const pathname = usePathname();
+  const { user } = useAuthUser();
+  const sections = getNavSections(user?.role);
+  const homeHref =
+    user?.role && isWorkerRole(user.role) ? "/dashboard/sales/new" : "/dashboard";
 
   return (
     <Sheet>
@@ -207,9 +256,9 @@ export function MobileSidebar() {
       <SheetContent side="left" className="w-64 p-0">
         <div className="flex h-full flex-col bg-sidebar">
           <div className="flex h-16 items-center border-b border-sidebar-border px-4">
-            <SidebarBrand />
+            <SidebarBrand homeHref={homeHref} />
           </div>
-          <SidebarNav pathname={pathname} />
+          <SidebarNav pathname={pathname} sections={sections} />
         </div>
       </SheetContent>
     </Sheet>

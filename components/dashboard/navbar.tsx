@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,29 +14,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
+import { useAuthUser } from "./use-auth-user";
+import { isWorkerRole } from "@/lib/role-access";
 
 export function Navbar() {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { user } = useAuthUser();
   const [loggingOut, setLoggingOut] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setUser(data.data);
-        }
-      })
-      .catch(() => setUser(null));
-  }, []);
+  const isWorker = user?.role ? isWorkerRole(user.role) : false;
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -55,12 +39,12 @@ export function Navbar() {
       <MobileSidebar />
 
       <div className="flex flex-1 items-center gap-3">
-        <GlobalSearch />
+        {!isWorker && <GlobalSearch />}
 
         <div className="ml-auto flex items-center gap-2">
           <NavbarSilverRate />
-          {user && <NavbarCashPill role={user.role} />}
-          <NotificationBell />
+          {user && !isWorker && <NavbarCashPill role={user.role} />}
+          {!isWorker && <NotificationBell />}
 
           {user && (
             <div className="hidden items-center gap-2 sm:flex">

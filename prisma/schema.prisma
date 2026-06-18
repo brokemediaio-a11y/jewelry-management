@@ -15,6 +15,7 @@ enum UserRole {
   STAFF
   CLERK
   ACCOUNTANT
+  WORKER
 }
 
 enum PaymentMethod {
