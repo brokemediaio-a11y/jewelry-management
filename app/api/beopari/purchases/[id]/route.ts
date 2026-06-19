@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { getPurchasePaidRemaining } from "@/lib/beopari-utils";
+import { getPurchasePaidRemaining, serializePurchaseItems } from "@/lib/beopari-utils";
 
 export async function GET(
   _request: NextRequest,
@@ -18,6 +18,7 @@ export async function GET(
       include: {
         beopari: { select: { id: true, name: true } },
         allocations: { select: { amount: true, expenseId: true } },
+        items: { orderBy: { categoryName: "asc" } },
       },
     });
     if (!purchase) return errorResponse("Purchase not found", 404);
@@ -35,6 +36,7 @@ export async function GET(
       totalCost,
       paidAmount,
       remainingAmount,
+      items: serializePurchaseItems(purchase),
     });
   } catch (err) {
     console.error("Failed to fetch purchase:", err);

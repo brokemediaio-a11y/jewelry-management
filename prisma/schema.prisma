@@ -99,8 +99,9 @@ model Category {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  inventoryItems   InventoryItem[]
-  beopariPurchases BeopariPurchase[]
+  inventoryItems       InventoryItem[]
+  beopariPurchases     BeopariPurchase[]
+  beopariPurchaseItems BeopariPurchaseItem[]
 
   @@map("categories")
 }
@@ -374,12 +375,30 @@ model BeopariPurchase {
   purchaseDate DateTime @default(now()) @map("purchase_date")
   notes        String?  @db.Text
 
-  beopari     Beopari    @relation(fields: [beopariId], references: [id], onDelete: Cascade)
-  category    Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  beopari     Beopari                    @relation(fields: [beopariId], references: [id], onDelete: Cascade)
+  category    Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  items       BeopariPurchaseItem[]
   allocations ExpenseBeopariAllocation[]
 
   @@index([beopariId])
   @@map("beopari_purchases")
+}
+
+model BeopariPurchaseItem {
+  id           String  @id @default(uuid())
+  purchaseId   String  @map("purchase_id")
+  categoryId   String? @map("category_id")
+  categoryName String  @map("category_name")
+  totalWeight  Decimal @map("total_weight") @db.Decimal(10, 3)
+  quantity     Int
+  costPerGram  Decimal @map("cost_per_gram") @db.Decimal(10, 2)
+  lineTotal    Decimal @map("line_total") @db.Decimal(10, 2)
+
+  purchase BeopariPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  category Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseId])
+  @@map("beopari_purchase_items")
 }
 
 model Settings {

@@ -19,6 +19,15 @@ import { formatPKR } from "@/lib/currency-utils";
 import { formatPaymentMethod } from "@/lib/display-labels";
 import { PageHeader } from "@/components/dashboard/page-header";
 
+type PurchaseItemRow = {
+  id: string;
+  categoryName: string;
+  totalWeight: number;
+  quantity: number;
+  costPerGram: number;
+  lineTotal: number;
+};
+
 type PurchaseRow = {
   id: string;
   categoryName: string;
@@ -29,6 +38,7 @@ type PurchaseRow = {
   purchaseDate: string;
   paidAmount: number;
   remainingAmount: number;
+  items: PurchaseItemRow[];
 };
 
 type PaymentRow = {
@@ -49,6 +59,29 @@ type BeopariDetail = {
   purchases: PurchaseRow[];
   paymentHistory: PaymentRow[];
 };
+
+function PurchaseMetricCell({
+  items,
+  formatValue,
+}: {
+  items: PurchaseItemRow[];
+  formatValue: (item: PurchaseItemRow) => string;
+}) {
+  if (items.length <= 1) {
+    return <span>{formatValue(items[0])}</span>;
+  }
+
+  return (
+    <div className="space-y-1 text-right">
+      {items.map((item) => (
+        <div key={item.id} className="text-xs leading-snug">
+          <span className="text-muted-foreground">{item.categoryName}: </span>
+          <span>{formatValue(item)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function KpiCard({
   label,
@@ -179,15 +212,44 @@ export default function BeopariDetailPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {purchases.map((p) => (
+                  {purchases.map((p) => {
+                    const items = p.items?.length
+                      ? p.items
+                      : [
+                          {
+                            id: p.id,
+                            categoryName: p.categoryName,
+                            totalWeight: p.totalWeight,
+                            quantity: p.quantity,
+                            costPerGram: p.costPerGram,
+                            lineTotal: p.totalCost,
+                          },
+                        ];
+
+                    return (
                     <TableRow key={p.id}>
                       <TableCell>
                         {new Date(p.purchaseDate).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="font-medium">{p.categoryName}</TableCell>
-                      <TableCell className="text-right">{p.totalWeight.toFixed(3)} g</TableCell>
-                      <TableCell className="text-right">{p.quantity}</TableCell>
-                      <TableCell className="text-right">{formatPKR(p.costPerGram)}</TableCell>
+                      <TableCell className="text-right">
+                        <PurchaseMetricCell
+                          items={items}
+                          formatValue={(item) => `${item.totalWeight.toFixed(3)} g`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <PurchaseMetricCell
+                          items={items}
+                          formatValue={(item) => String(item.quantity)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <PurchaseMetricCell
+                          items={items}
+                          formatValue={(item) => formatPKR(item.costPerGram)}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">{formatPKR(p.totalCost)}</TableCell>
                       <TableCell className="text-right">{formatPKR(p.paidAmount)}</TableCell>
                       <TableCell className="text-right font-medium">
@@ -207,7 +269,8 @@ export default function BeopariDetailPage() {
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

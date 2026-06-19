@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { errorResponse, paginatedResponse, successResponse } from "@/lib/api-response";
 import { paginationSchema } from "@/lib/validations";
-import { calculatePurchaseTotal } from "@/lib/beopari-utils";
+import {
+  aggregatePurchaseItems,
+  getPurchasePaidRemaining,
+  serializePurchaseItems,
+  validatePurchaseItems,
+} from "@/lib/beopari-utils";
 import { roundPKR } from "@/lib/currency-utils";
 
 export async function GET(
@@ -32,7 +37,10 @@ export async function GET(
         skip,
         take: limit,
         orderBy: { purchaseDate: "desc" },
-        include: { allocations: { select: { amount: true } } },
+        include: {
+          allocations: { select: { amount: true } },
+          items: { orderBy: { categoryName: "asc" } },
+        },
       }),
       prisma.beopariPurchase.count({ where }),
     ]);
@@ -48,6 +56,7 @@ export async function GET(
           totalCost: Number(p.totalCost),
           paidAmount,
           remainingAmount,
+          items: serializePurchaseItems(p),
         };
       })
       .filter((p) => (onlyOpen ? p.remainingAmount > 0.009 : true));
@@ -70,20 +79,27 @@ export async function POST(
     const { id: beopariId } = await params;
     const body = await request.json();
 
-    const categoryId = body?.categoryId ? String(body.categoryId) : null;
-    const categoryName = String(body?.categoryName || "").trim();
-    const totalWeight = Number(body?.totalWeight);
-    const quantity = Number(body?.quantity);
-    const costPerGram = Number(body?.costPerGram);
     const purchaseDate = body?.purchaseDate ? new Date(body.purchaseDate) : new Date();
     const notes = body?.notes ? String(body.notes) : null;
 
-    if (!categoryName) return errorResponse("Category name is required", 400);
-    if (!Number.isFinite(totalWeight) || totalWeight <= 0) return errorResponse("Total weight must be > 0", 400);
-    if (!Number.isFinite(quantity) || quantity < 1) return errorResponse("Quantity must be >= 1", 400);
-    if (!Number.isFinite(costPerGram) || costPerGram < 0) return errorResponse("Cost per gram must be >= 0", 400);
+    let parsedItems = validatePurchaseItems(body?.items);
 
-    const totalCost = calculatePurchaseTotal(totalWeight, costPerGram);
+    if (typeof parsedItems === "string" && body?.categoryName) {
+      parsedItems = validatePurchaseItems([
+        {
+          categoryId: body?.categoryId ? String(body.categoryId) : null,
+          categoryName: String(body.categoryName),
+          totalWeight: Number(body?.totalWeight),
+          quantity: Number(body?.quantity),
+          costPerGram: Number(body?.costPerGram),
+        },
+      ]);
+    }
+
+    if (typeof parsedItems === "string") return errorResponse(parsedItems, 400);
+
+    const { normalized, totalCost, totalWeight, quantity, categoryName, categoryId, costPerGram } =
+      aggregatePurchaseItems(parsedItems);
 
     const created = await prisma.beopariPurchase.create({
       data: {
@@ -96,8 +112,24 @@ export async function POST(
         totalCost: new Prisma.Decimal(totalCost),
         purchaseDate,
         notes,
+        items: {
+          create: normalized.map((item) => ({
+            categoryId: item.categoryId ?? null,
+            categoryName: item.categoryName,
+            totalWeight: new Prisma.Decimal(item.totalWeight),
+            quantity: item.quantity,
+            costPerGram: new Prisma.Decimal(roundPKR(item.costPerGram)),
+            lineTotal: new Prisma.Decimal(item.lineTotal),
+          })),
+        },
       },
+      include: { items: true },
     });
+
+    const { paidAmount, remainingAmount } = getPurchasePaidRemaining(
+      Number(created.totalCost),
+      []
+    );
 
     return successResponse(
       {
@@ -105,6 +137,9 @@ export async function POST(
         totalWeight: Number(created.totalWeight),
         costPerGram: Number(created.costPerGram),
         totalCost: Number(created.totalCost),
+        paidAmount,
+        remainingAmount,
+        items: serializePurchaseItems(created),
       },
       201
     );
@@ -113,4 +148,3 @@ export async function POST(
     return errorResponse("Failed to create purchase", 500);
   }
 }
-

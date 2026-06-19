@@ -16,3 +16,7 @@ export function parsePKR(value: string): number {
 export function roundPKR(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
+
+export function calculatePurchaseTotal(totalWeight: number, costPerGram: number): number {
+  return roundPKR(totalWeight * costPerGram);
+}
